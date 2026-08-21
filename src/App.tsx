@@ -5,6 +5,8 @@ import Login from './components/Login';
 import AdminPanel from './components/AdminPanel';
 import Profile from './components/Profile';
 import KpRequest from './components/KpRequest';
+import ServiceMemo from './components/ServiceMemo';
+import Counterparties from './components/Counterparties';
 import ErrorBoundary from './components/ErrorBoundary';
 import { getStoredUser, getToken } from './utils/api';
 
@@ -44,6 +46,16 @@ export default function App() {
           <Route path="/kp" element={
             <ProtectedRoute>
               <KpRequest />
+            </ProtectedRoute>
+          } />
+          <Route path="/memo" element={
+            <ProtectedRoute>
+              <ServiceMemo />
+            </ProtectedRoute>
+          } />
+          <Route path="/counterparties" element={
+            <ProtectedRoute>
+              <Counterparties />
             </ProtectedRoute>
           } />
           <Route path="/admin" element={

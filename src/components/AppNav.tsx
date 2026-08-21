@@ -4,6 +4,8 @@ import { Link, useLocation } from 'react-router-dom';
 const links = [
   { to: '/', label: 'НМЦК' },
   { to: '/kp', label: 'Запрос КП' },
+  { to: '/memo', label: 'Служебка' },
+  { to: '/counterparties', label: 'Контрагенты' },
 ];
 
 export default function AppNav() {

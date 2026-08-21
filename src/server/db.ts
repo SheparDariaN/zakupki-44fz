@@ -4,9 +4,11 @@ import bcrypt from 'bcryptjs';
 import { HttpError } from './errors';
 import {
   isUserRole,
+  type Counterparty,
   type DatabaseFile,
   type DocumentType,
   type PublicUser,
+  type StoredCounterparty,
   type StoredDocument,
   type StoredUser,
   type UserRole,
@@ -29,6 +31,12 @@ const EMPTY_SETTINGS: UserSettings = {
   executorName: '',
 };
 
+const EMPTY_COUNTERPARTY_FIELDS = {
+  director: '',
+  email: '',
+  legalAddress: '',
+};
+
 let dbInstance: JSONDatabase | null = null;
 
 function isDocumentType(value: unknown): value is DocumentType {
@@ -37,6 +45,26 @@ function isDocumentType(value: unknown): value is DocumentType {
 
 function asString(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
+}
+
+function trimString(value: unknown, fallback = ''): string {
+  return asString(value, fallback).trim();
+}
+
+function normalizeTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const tags: string[] = [];
+
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const tag = item.trim();
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    tags.push(tag);
+  }
+
+  return tags;
 }
 
 function pickSettings(input: unknown, base: UserSettings = EMPTY_SETTINGS): UserSettings {
@@ -53,7 +81,7 @@ function measureJsonBytes(value: unknown): number {
 }
 
 class JSONDatabase {
-  data: DatabaseFile = { users: [], documents: [] };
+  data: DatabaseFile = { users: [], documents: [], counterparties: [] };
   private saveQueue: Promise<void> = Promise.resolve();
 
   async init() {
@@ -96,7 +124,10 @@ class JSONDatabase {
     const documents = Array.isArray(obj.documents)
       ? obj.documents.map((d) => this.normalizeDocument(d)).filter((d): d is StoredDocument => d !== null)
       : [];
-    return { users, documents };
+    const counterparties = Array.isArray(obj.counterparties)
+      ? obj.counterparties.map((c) => this.normalizeCounterparty(c)).filter((c): c is StoredCounterparty => c !== null)
+      : [];
+    return { users, documents, counterparties };
   }
 
   private normalizeUser(raw: unknown): StoredUser | null {
@@ -128,6 +159,29 @@ class JSONDatabase {
     };
   }
 
+  private normalizeCounterparty(raw: unknown): StoredCounterparty | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const c = raw as Record<string, unknown>;
+    if (typeof c.id !== 'number') return null;
+
+    const companyName = trimString(c.companyName);
+    if (!companyName) return null;
+
+    const createdAt = typeof c.createdAt === 'number' ? c.createdAt : Date.now();
+    const updatedAt = typeof c.updatedAt === 'number' ? c.updatedAt : createdAt;
+
+    return {
+      id: c.id,
+      companyName,
+      director: trimString(c.director),
+      email: trimString(c.email),
+      legalAddress: trimString(c.legalAddress),
+      tags: normalizeTags(c.tags),
+      createdAt,
+      updatedAt,
+    };
+  }
+
   async save() {
     const saveJob = this.saveQueue.then(() => this.writeFile());
     this.saveQueue = saveJob.catch(() => undefined);
@@ -147,7 +201,7 @@ class JSONDatabase {
     }
   }
 
-  private getNextId(table: 'users' | 'documents') {
+  private getNextId(table: 'users' | 'documents' | 'counterparties') {
     const records = this.data[table];
     if (records.length === 0) return 1;
     return Math.max(...records.map((r) => r.id)) + 1;
@@ -259,6 +313,74 @@ class JSONDatabase {
     return this.data.documents
       .filter((d) => d.userId === userId)
       .sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async listCounterparties(): Promise<StoredCounterparty[]> {
+    return [...this.data.counterparties].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async createCounterparty(input: unknown): Promise<StoredCounterparty> {
+    const values = this.normalizeCounterpartyInput(input);
+    const now = Date.now();
+    const counterparty: StoredCounterparty = {
+      id: this.getNextId('counterparties'),
+      companyName: values.companyName,
+      director: values.director,
+      email: values.email,
+      legalAddress: values.legalAddress,
+      tags: values.tags,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.data.counterparties.push(counterparty);
+    await this.save();
+    return counterparty;
+  }
+
+  async updateCounterparty(id: number, input: unknown): Promise<StoredCounterparty> {
+    const counterparty = this.data.counterparties.find((c) => c.id === id);
+    if (!counterparty) {
+      throw new HttpError(404, 'Контрагент не найден');
+    }
+
+    const values = this.normalizeCounterpartyInput(input, counterparty);
+    counterparty.companyName = values.companyName;
+    counterparty.director = values.director;
+    counterparty.email = values.email;
+    counterparty.legalAddress = values.legalAddress;
+    counterparty.tags = values.tags;
+    counterparty.updatedAt = Date.now();
+
+    await this.save();
+    return counterparty;
+  }
+
+  async deleteCounterparty(id: number): Promise<void> {
+    const index = this.data.counterparties.findIndex((c) => c.id === id);
+    if (index === -1) {
+      throw new HttpError(404, 'Контрагент не найден');
+    }
+
+    this.data.counterparties.splice(index, 1);
+    await this.save();
+  }
+
+  private normalizeCounterpartyInput(input: unknown, base?: Counterparty): Omit<Counterparty, 'id' | 'createdAt' | 'updatedAt'> {
+    const src = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+    const companyName = trimString(src.companyName, base?.companyName);
+
+    if (!companyName) {
+      throw new HttpError(400, 'Укажите название контрагента');
+    }
+
+    return {
+      companyName,
+      director: trimString(src.director, base?.director ?? EMPTY_COUNTERPARTY_FIELDS.director),
+      email: trimString(src.email, base?.email ?? EMPTY_COUNTERPARTY_FIELDS.email),
+      legalAddress: trimString(src.legalAddress, base?.legalAddress ?? EMPTY_COUNTERPARTY_FIELDS.legalAddress),
+      tags: Array.isArray(src.tags) ? normalizeTags(src.tags) : base?.tags ?? [],
+    };
   }
 
   private pruneExpiredDocuments(): boolean {

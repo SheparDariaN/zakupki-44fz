@@ -1,0 +1,187 @@
+import {
+  AlignmentType,
+  BorderStyle,
+  Document,
+  Packer,
+  Paragraph,
+  Table,
+  TableCell,
+  TableRow,
+  TextRun,
+  VerticalAlign,
+  WidthType,
+} from "docx";
+import { saveAs } from "file-saver";
+import { ServiceMemoData } from "../types";
+
+export function formatServiceMemoDate(value: string) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+  return `${day}.${month}.${year}`;
+}
+
+export function getServiceMemoSubjectItems(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.replace(/^[\s•*-]+/, "").trim())
+    .filter(Boolean);
+}
+
+export function getServiceMemoBodyText(data: ServiceMemoData) {
+  return [data.purpose.trim(), data.subjectIntro.trim()].filter(Boolean).join(" ");
+}
+
+export function getServiceMemoSignatureParts(requester: string) {
+  const lines = requester.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2) {
+    return { left: requester.trim(), right: "" };
+  }
+  return {
+    left: lines.slice(0, -1).join("\n"),
+    right: lines[lines.length - 1],
+  };
+}
+
+const buildServiceMemoDocument = (data: ServiceMemoData) => {
+  const TIMES = "Times New Roman";
+  const bodyText = getServiceMemoBodyText(data);
+  const subjectItems = getServiceMemoSubjectItems(data.subjectTable);
+  const signature = getServiceMemoSignatureParts(data.requester);
+
+  const t = (text: string, bold = false, size = 24) =>
+    new TextRun({ text, font: TIMES, bold, size });
+
+  const emptyParagraph = (before = 200) =>
+    new Paragraph({ text: "", spacing: { before } });
+
+  const noBorders = {
+    top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+  };
+
+  const tableCell = (children: Paragraph[], width = 50) =>
+    new TableCell({
+      width: { size: width, type: WidthType.PERCENTAGE },
+      verticalAlign: VerticalAlign.TOP,
+      margins: { top: 80, bottom: 80, left: 100, right: 100 },
+      children,
+    });
+
+  const headerLines = [
+    "Руководителю контрактной службы",
+    data.contractServiceHead,
+    data.requester,
+  ].filter(Boolean);
+
+  return new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: 1134,
+              right: 1134,
+              bottom: 1134,
+              left: 1701,
+            },
+          },
+        },
+        children: [
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: noBorders,
+            rows: [
+              new TableRow({
+                children: [
+                  tableCell([new Paragraph({ text: "" })]),
+                  tableCell(
+                    headerLines.map(
+                      (line, index) =>
+                        new Paragraph({
+                          children: [t(line, index === 0, 24)],
+                          alignment: AlignmentType.LEFT,
+                          spacing: { after: 80 },
+                        })
+                    )
+                  ),
+                ],
+              }),
+            ],
+          }),
+
+          emptyParagraph(420),
+
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 300 },
+            children: [t("СЛУЖЕБНАЯ ЗАПИСКА", false, 24)],
+          }),
+
+          new Paragraph({
+            indent: { firstLine: 720 },
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { line: 360, after: 80 },
+            children: [t(bodyText, false, 24)],
+          }),
+
+          ...subjectItems.map(
+            (item) =>
+              new Paragraph({
+                indent: { left: 1080, hanging: 360 },
+                alignment: AlignmentType.JUSTIFIED,
+                spacing: { line: 300, after: 0 },
+                children: [t("•", false, 24), t(`\t${item}`, false, 24)],
+              })
+          ),
+
+          emptyParagraph(360),
+
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: noBorders,
+            rows: [
+              new TableRow({
+                children: [
+                  tableCell(
+                    signature.left.split("\n").map(
+                      (line) =>
+                        new Paragraph({
+                          children: [t(line, false, 24)],
+                          spacing: { after: 0 },
+                        })
+                    )
+                  ),
+                  tableCell(
+                    [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [t(signature.right, false, 24)],
+                      }),
+                    ]
+                  ),
+                ],
+              }),
+            ],
+          }),
+
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            spacing: { before: 80 },
+            children: [t(formatServiceMemoDate(data.date), false, 24)],
+          }),
+        ],
+      },
+    ],
+  });
+};
+
+export const generateServiceMemoDocx = async (data: ServiceMemoData) => {
+  const doc = buildServiceMemoDocument(data);
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, "Служебная_записка_на_закупку.docx");
+};

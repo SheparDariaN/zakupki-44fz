@@ -52,6 +52,11 @@ function parseRole(value: unknown): UserRole | null {
   return null;
 }
 
+function parseId(value: string): number | null {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 function clientIp(req: Request): string {
   return req.socket.remoteAddress || "unknown";
 }
@@ -273,6 +278,52 @@ async function startServer() {
     try {
       const { name, state, type } = req.body as { name?: unknown; state?: unknown; type?: unknown };
       await db.addDocument(req.user.id, name, state, type);
+      res.json({ success: true });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.get("/api/counterparties", authenticateToken, async (_req: AuthedRequest, res: Response) => {
+    try {
+      const counterparties = await db.listCounterparties();
+      res.json(counterparties);
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.post("/api/counterparties", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    try {
+      const counterparty = await db.createCounterparty(req.body);
+      res.json({ success: true, counterparty });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.put("/api/counterparties/:id", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор контрагента" });
+    }
+
+    try {
+      const counterparty = await db.updateCounterparty(id, req.body);
+      res.json({ success: true, counterparty });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.delete("/api/counterparties/:id", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор контрагента" });
+    }
+
+    try {
+      await db.deleteCounterparty(id);
       res.json({ success: true });
     } catch (err) {
       handleApiError(res, err);

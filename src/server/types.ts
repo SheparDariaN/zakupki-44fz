@@ -39,9 +39,23 @@ export interface StoredDocument {
   createdAt: number;
 }
 
+export interface Counterparty {
+  id: number;
+  companyName: string;
+  director: string;
+  email: string;
+  legalAddress: string;
+  tags: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type StoredCounterparty = Counterparty;
+
 export interface DatabaseFile {
   users: StoredUser[];
   documents: StoredDocument[];
+  counterparties: StoredCounterparty[];
 }
 
 export function isUserRole(value: unknown): value is UserRole {

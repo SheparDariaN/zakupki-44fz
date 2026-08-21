@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { KpDocxData } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Counterparty, KpDocxData } from '../types';
 import { generateKpDocx } from '../utils/kpDocxGenerator';
 import KpDocumentPreview from './KpDocumentPreview';
 import AppNav from './AppNav';
@@ -27,12 +27,106 @@ info@softmall.ru`
   contactPerson: `Богданов Валентин Олегович, т. 8-384-244-26-28`
 };
 
+function formatCounterpartyVendorInfo(counterparty: Counterparty): string {
+  return [
+    counterparty.companyName,
+    counterparty.director,
+    counterparty.legalAddress,
+    counterparty.email,
+  ].map((value) => value.trim()).filter(Boolean).join('\n\n');
+}
+
 export default function KpRequest() {
   const [data, setData] = useState<KpDocxData>(defaultValues);
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [downloadMessage, setDownloadMessage] = useState('');
   const [downloadMessageError, setDownloadMessageError] = useState(false);
+  const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
+  const [selectedCounterpartyId, setSelectedCounterpartyId] = useState('');
+  const [counterpartySearch, setCounterpartySearch] = useState('');
+  const [selectedCounterpartyTag, setSelectedCounterpartyTag] = useState('');
+  const [counterpartiesLoading, setCounterpartiesLoading] = useState(true);
+  const [counterpartiesError, setCounterpartiesError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+
+    async function fetchCounterparties() {
+      setCounterpartiesLoading(true);
+      setCounterpartiesError('');
+
+      try {
+        const res = await apiFetch('/api/counterparties');
+        if (!active) return;
+
+        if (res.ok) {
+          const data: Counterparty[] = await res.json();
+          setCounterparties(data);
+          setSelectedCounterpartyId((current) => current || (data[0] ? String(data[0].id) : ''));
+        } else {
+          setCounterpartiesError(await readApiError(res, 'Не удалось загрузить справочник контрагентов.'));
+        }
+      } catch (err) {
+        console.error(err);
+        if (active) {
+          setCounterpartiesError('Не удалось загрузить справочник контрагентов: ошибка сети.');
+        }
+      } finally {
+        if (active) {
+          setCounterpartiesLoading(false);
+        }
+      }
+    }
+
+    void fetchCounterparties();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const availableCounterpartyTags = useMemo(() => {
+    const tags = new Set<string>();
+    counterparties.forEach((counterparty) => {
+      counterparty.tags.forEach((tag) => {
+        const trimmedTag = tag.trim();
+        if (trimmedTag) {
+          tags.add(trimmedTag);
+        }
+      });
+    });
+
+    return Array.from(tags).sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [counterparties]);
+
+  const filteredCounterparties = useMemo(() => {
+    const normalizedSearch = counterpartySearch.trim().toLowerCase();
+
+    return counterparties.filter((counterparty) => {
+      const matchesSearch = !normalizedSearch
+        || counterparty.companyName.toLowerCase().includes(normalizedSearch)
+        || counterparty.tags.some((tag) => tag.toLowerCase().includes(normalizedSearch));
+      const matchesTag = !selectedCounterpartyTag
+        || counterparty.tags.includes(selectedCounterpartyTag);
+
+      return matchesSearch && matchesTag;
+    });
+  }, [counterparties, counterpartySearch, selectedCounterpartyTag]);
+
+  useEffect(() => {
+    if (filteredCounterparties.length === 0) {
+      setSelectedCounterpartyId('');
+      return;
+    }
+
+    const selectedIsVisible = filteredCounterparties.some(
+      (counterparty) => String(counterparty.id) === selectedCounterpartyId
+    );
+    if (!selectedIsVisible) {
+      setSelectedCounterpartyId(String(filteredCounterparties[0].id));
+    }
+  }, [filteredCounterparties, selectedCounterpartyId]);
 
   const handleChange = (field: keyof KpDocxData, value: string) => {
     setData(prev => ({ ...prev, [field]: value }));
@@ -47,6 +141,36 @@ export default function KpRequest() {
   const addVendor = () => {
     setData(prev => ({ ...prev, vendorInfos: [...prev.vendorInfos, ''] }));
     setPreviewIndex(data.vendorInfos.length);
+  };
+
+  const getSelectedCounterparty = () => (
+    counterparties.find((counterparty) => String(counterparty.id) === selectedCounterpartyId)
+  );
+
+  const addSelectedCounterparty = () => {
+    const selectedCounterparty = getSelectedCounterparty();
+    if (!selectedCounterparty) return;
+
+    const vendorInfo = formatCounterpartyVendorInfo(selectedCounterparty);
+    const emptyIndex = data.vendorInfos.findIndex((vendor) => !vendor.trim());
+
+    if (emptyIndex >= 0) {
+      handleVendorChange(emptyIndex, vendorInfo);
+      setPreviewIndex(emptyIndex);
+      return;
+    }
+
+    setData(prev => ({ ...prev, vendorInfos: [...prev.vendorInfos, vendorInfo] }));
+    setPreviewIndex(data.vendorInfos.length);
+  };
+
+  const replaceCurrentVendorWithCounterparty = () => {
+    const selectedCounterparty = getSelectedCounterparty();
+    if (!selectedCounterparty) return;
+
+    const vendorInfo = formatCounterpartyVendorInfo(selectedCounterparty);
+    const currentIndex = Math.min(previewIndex, data.vendorInfos.length - 1);
+    handleVendorChange(currentIndex, vendorInfo);
   };
 
   const removeVendor = (index: number) => {
@@ -119,6 +243,7 @@ export default function KpRequest() {
   const fieldClass = "bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors";
   const textareaClass = "w-full bg-transparent border border-[#141414] px-2 py-1.5 text-xs focus:outline-none focus:bg-white resize-none";
   const vendorCount = data.vendorInfos.filter(v => v.trim()).length;
+  const canUseSelectedCounterparty = Boolean(getSelectedCounterparty());
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#E4E3E0] text-[#141414] font-sans overflow-hidden p-6">
@@ -168,6 +293,91 @@ export default function KpRequest() {
               </button>
             </div>
             <div className="p-3 flex flex-col gap-3">
+              <div className="border border-[#141414]/30 bg-white/70 p-3 flex flex-col gap-2">
+                <label className={labelClass}>Выбор из справочника</label>
+                <input
+                  type="text"
+                  value={counterpartySearch}
+                  onChange={(e) => setCounterpartySearch(e.target.value)}
+                  placeholder="Поиск по названию или тегу..."
+                  disabled={counterpartiesLoading || counterparties.length === 0}
+                  className="w-full border border-[#141414] bg-white px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                />
+                {availableCounterpartyTags.length > 0 && (
+                  <select
+                    value={selectedCounterpartyTag}
+                    onChange={(e) => setSelectedCounterpartyTag(e.target.value)}
+                    disabled={counterpartiesLoading}
+                    className="w-full border border-[#141414] bg-white px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                  >
+                    <option value="">Все теги</option>
+                    {availableCounterpartyTags.map((tag) => (
+                      <option key={tag} value={tag}>
+                        {tag}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <select
+                  value={selectedCounterpartyId}
+                  onChange={(e) => setSelectedCounterpartyId(e.target.value)}
+                  disabled={counterpartiesLoading || filteredCounterparties.length === 0}
+                  className="w-full border border-[#141414] bg-white px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                >
+                  {filteredCounterparties.length === 0 && (
+                    <option value="">
+                      {counterpartiesLoading
+                        ? 'Загрузка контрагентов...'
+                        : counterparties.length === 0
+                          ? 'Справочник пуст'
+                          : 'Ничего не найдено'}
+                    </option>
+                  )}
+                  {filteredCounterparties.map((counterparty) => (
+                    <option key={counterparty.id} value={counterparty.id}>
+                      {counterparty.tags.length > 0
+                        ? `${counterparty.companyName} (${counterparty.tags.join(', ')})`
+                        : counterparty.companyName}
+                    </option>
+                  ))}
+                </select>
+                {(counterpartySearch || selectedCounterpartyTag) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCounterpartySearch('');
+                      setSelectedCounterpartyTag('');
+                    }}
+                    className="self-start text-[10px] font-bold uppercase hover:text-blue-700"
+                  >
+                    Сбросить фильтр
+                  </button>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={addSelectedCounterparty}
+                    disabled={!canUseSelectedCounterparty}
+                    className="border border-[#141414] bg-white px-2 py-1.5 text-[10px] font-bold uppercase hover:bg-black/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Добавить
+                  </button>
+                  <button
+                    type="button"
+                    onClick={replaceCurrentVendorWithCounterparty}
+                    disabled={!canUseSelectedCounterparty}
+                    className="border border-[#141414] bg-white px-2 py-1.5 text-[10px] font-bold uppercase hover:bg-yellow-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Заменить текущего
+                  </button>
+                </div>
+                {counterpartiesError && (
+                  <p className="text-[10px] text-red-700">{counterpartiesError}</p>
+                )}
+                {!counterpartiesLoading && counterparties.length === 0 && !counterpartiesError && (
+                  <p className="text-[10px] opacity-60">Добавьте контрагентов в справочнике, чтобы подставлять их в запрос КП.</p>
+                )}
+              </div>
               {data.vendorInfos.map((vendor, index) => (
                 <div key={index} className="relative group">
                   <div className="text-[9px] uppercase font-bold opacity-50 mb-1">#{index + 1}</div>

@@ -42,3 +42,23 @@ export interface KpDocxData {
   submissionEmail: string;
   contactPerson: string;
 }
+
+export interface Counterparty {
+  id: number;
+  companyName: string;
+  director: string;
+  email: string;
+  legalAddress: string;
+  tags: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ServiceMemoData {
+  purpose: string;
+  subjectIntro: string;
+  subjectTable: string;
+  requester: string;
+  contractServiceHead: string;
+  date: string;
+}
