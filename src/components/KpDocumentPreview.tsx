@@ -8,7 +8,7 @@ interface PreviewProps {
 
 export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
   return (
-    <div className="animate-in fade-in duration-300 min-w-[720px] text-[10pt] font-serif leading-tight">
+    <div className="animate-in fade-in duration-300 w-[210mm] min-w-[210mm] min-h-[297mm] mx-auto bg-white shadow-[0_10px_30px_rgba(0,0,0,0.1)] pt-[20mm] pr-[15mm] pb-[20mm] pl-[30mm] text-[10pt] font-serif leading-tight">
       <div className="text-center font-bold text-[14pt] mb-1 leading-tight">
         <p>ГОСУДАРСТВЕННОЕ КАЗЕННОЕ УЧРЕЖДЕНИЕ</p>
         <p>«ЦЕНТР ИНФОРМАЦИОННЫХ ТЕХНОЛОГИЙ КУЗБАССА»</p>
@@ -17,11 +17,11 @@ export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
         <p>ул. Арочная, 37А, г. Кемерово, 650064, тел: (384-2) 44-26-18, e-mail: citko@ako.ru</p>
       </div>
 
-      <div className="flex justify-between mb-8 items-end">
-        <div className="w-1/2 text-[12pt] pb-[2px]">
-          ____________________ № ____________________
+      <div className="grid grid-cols-[82mm_82mm] justify-between w-full mb-8 items-end">
+        <div className="text-[12pt] pb-[2px] whitespace-nowrap">
+          __________ № __________
         </div>
-        <div className="w-1/2 whitespace-pre-wrap text-[11pt]">
+        <div className="whitespace-pre-wrap text-[11pt]">
           {data.vendorInfos[vendorIndex] || ""}
         </div>
       </div>

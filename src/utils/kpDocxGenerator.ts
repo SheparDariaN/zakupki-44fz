@@ -17,6 +17,8 @@ import { KpDocxData } from "../types";
 
 const buildDocument = (data: KpDocxData, vendorInfo: string) => {
   const TIMES = "Times New Roman";
+  const HEADER_BLOCK_WIDTH = 4650; // 8.2 cm in twips.
+  const HEADER_TABLE_WIDTH = HEADER_BLOCK_WIDTH * 2;
 
   const t = (text: string, bold: boolean = false, size: number = 24) =>
     new TextRun({ text, font: TIMES, bold, size });
@@ -114,7 +116,8 @@ const buildDocument = (data: KpDocxData, vendorInfo: string) => {
           }),
 
           new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: HEADER_TABLE_WIDTH, type: WidthType.DXA },
+            columnWidths: [HEADER_BLOCK_WIDTH, HEADER_BLOCK_WIDTH],
             borders: {
               top: { style: BorderStyle.NONE, size: 0, color: "auto" },
               bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
@@ -127,14 +130,14 @@ const buildDocument = (data: KpDocxData, vendorInfo: string) => {
               new TableRow({
                 children: [
                   new TableCell({
-                    width: { size: 50, type: WidthType.PERCENTAGE },
+                    width: { size: HEADER_BLOCK_WIDTH, type: WidthType.DXA },
                     verticalAlign: VerticalAlign.BOTTOM,
                     children: [
-                      new Paragraph({ children: [t("____________________ № ____________________", false, 24)] })
+                      new Paragraph({ children: [t("__________ № __________", false, 24)] })
                     ]
                   }),
                   new TableCell({
-                    width: { size: 50, type: WidthType.PERCENTAGE },
+                    width: { size: HEADER_BLOCK_WIDTH, type: WidthType.DXA },
                     children: vendorInfo.split('\n').map(line =>
                       new Paragraph({ children: [t(line, false, 22)] })
                     ),

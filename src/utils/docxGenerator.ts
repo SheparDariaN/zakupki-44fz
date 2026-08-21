@@ -6,7 +6,10 @@ import { formatAmountInWords } from './numberToWords';
 
 export const METHOD_TEXT = "В соответствии со ст. 22 Федерального закона от 05.04.2013 № 44-ФЗ «О контрактной системе в сфере закупок товаров, работ, услуг для обеспечения государственных и муниципальных нужд» расчет начальной (максимальной) цены контракта (далее – НМЦК) произведен методом сопоставимых рыночных цен (анализа рынка) в соответствии с Методическими рекомендациями по применению методов определения начальной (максимальной) цены контракта, цены контракта, заключаемого с единственным поставщиком (подрядчиком, исполнителем), утвержденными Приказом Министерства экономического развития РФ от 2 октября 2013 г. N 567 (далее – Методические рекомендации).";
 
-const createCell = (text: string | Paragraph[], colSpan: number = 1, align: AlignmentType = AlignmentType.CENTER, bold: boolean = false, valign: VerticalAlign = VerticalAlign.CENTER, fontSize: number = 20) => {
+type DocxAlignment = (typeof AlignmentType)[keyof typeof AlignmentType];
+type DocxVerticalAlign = NonNullable<ConstructorParameters<typeof TableCell>[0]["verticalAlign"]>;
+
+const createCell = (text: string | Paragraph[], colSpan: number = 1, align: DocxAlignment = AlignmentType.CENTER, bold: boolean = false, valign: DocxVerticalAlign = VerticalAlign.CENTER, fontSize: number = 20) => {
   const content = typeof text === 'string' 
     ? [new Paragraph({ children: [new TextRun({ text, bold, font: "Times New Roman", size: fontSize })], alignment: align })]
     : text;

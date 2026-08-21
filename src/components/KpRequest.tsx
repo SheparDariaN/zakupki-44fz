@@ -332,7 +332,7 @@ export default function KpRequest() {
               <span className="text-[10px] text-green-700 font-bold uppercase animate-pulse">● Авто-обновление</span>
             </div>
           </div>
-          <div className="paper scroll-area flex-1 transition-all overflow-x-auto">
+          <div className="scroll-area flex-1 transition-all overflow-auto bg-[#d7d5d0] p-6">
             <KpDocumentPreview data={data} vendorIndex={previewIndex} />
           </div>
         </article>
