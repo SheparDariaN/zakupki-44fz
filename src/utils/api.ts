@@ -41,7 +41,7 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
   }
 
   const res = await fetch(input, { ...init, headers });
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     redirectToLogin();
   }
   return res;

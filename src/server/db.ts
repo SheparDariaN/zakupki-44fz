@@ -54,6 +54,7 @@ function measureJsonBytes(value: unknown): number {
 
 class JSONDatabase {
   data: DatabaseFile = { users: [], documents: [] };
+  private saveQueue: Promise<void> = Promise.resolve();
 
   async init() {
     try {
@@ -79,9 +80,13 @@ class JSONDatabase {
         password: hash,
         role: 'admin',
         settings: { ...EMPTY_SETTINGS },
+        mustChangePassword: true,
       });
       await this.save();
       console.log('Default admin user created (admin / admin)');
+    } else if (!admin.mustChangePassword && bcrypt.compareSync('admin', admin.password)) {
+      admin.mustChangePassword = true;
+      await this.save();
     }
   }
 
@@ -105,6 +110,7 @@ class JSONDatabase {
       password: u.password,
       role,
       settings: pickSettings(u.settings),
+      mustChangePassword: typeof u.mustChangePassword === 'boolean' ? u.mustChangePassword : false,
     };
   }
 
@@ -123,6 +129,12 @@ class JSONDatabase {
   }
 
   async save() {
+    const saveJob = this.saveQueue.then(() => this.writeFile());
+    this.saveQueue = saveJob.catch(() => undefined);
+    return saveJob;
+  }
+
+  private async writeFile() {
     await fs.mkdir(path.dirname(DB_FILE), { recursive: true });
     const serialized = JSON.stringify(this.data, null, 2);
     const tmpFile = `${DB_FILE}.${process.pid}.tmp`;
@@ -166,6 +178,7 @@ class JSONDatabase {
       password: passwordHash,
       role,
       settings: { ...EMPTY_SETTINGS },
+      mustChangePassword: false,
     });
     await this.save();
     return { lastID: id };
@@ -177,6 +190,7 @@ class JSONDatabase {
       throw new HttpError(404, 'Пользователь не найден');
     }
     user.password = passwordHash;
+    user.mustChangePassword = false;
     await this.save();
   }
 

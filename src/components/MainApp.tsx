@@ -5,7 +5,7 @@ import { generateDocx, METHOD_TEXT } from '../utils/docxGenerator';
 import { formatAmountInWords } from '../utils/numberToWords';
 import { Trash2, Plus, RefreshCw, Download, User } from 'lucide-react';
 import AppNav from './AppNav';
-import { apiFetch } from '../utils/api';
+import { apiFetch, readApiError } from '../utils/api';
 
 const initialState: AppState = {
   requisites: {
@@ -36,6 +36,8 @@ const initialState: AppState = {
 
 export default function App() {
   const [state, setState] = useState<AppState>(initialState);
+  const [downloadMessage, setDownloadMessage] = useState('');
+  const [downloadMessageError, setDownloadMessageError] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -124,15 +126,18 @@ export default function App() {
   };
 
   const handleDocxDownload = async () => {
+    setDownloadMessage('');
     try {
       await generateDocx(state);
     } catch (e) {
       console.error(e);
+      setDownloadMessage('Не удалось сформировать DOCX. Проверьте данные и попробуйте ещё раз.');
+      setDownloadMessageError(true);
       return;
     }
 
     try {
-      await apiFetch('/api/user/documents', {
+      const res = await apiFetch('/api/user/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -141,8 +146,14 @@ export default function App() {
           type: 'nmck'
         })
       });
+      if (!res.ok) {
+        setDownloadMessage(`DOCX скачан, но история не сохранена: ${await readApiError(res)}`);
+        setDownloadMessageError(true);
+      }
     } catch (e) {
-      console.error("Failed to save document history");
+      console.error("Failed to save document history", e);
+      setDownloadMessage('DOCX скачан, но история не сохранена: ошибка сети.');
+      setDownloadMessageError(true);
     }
   };
 
@@ -169,6 +180,12 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {downloadMessage && (
+        <div className={`mb-4 border border-[#141414] bg-white px-4 py-3 text-sm ${downloadMessageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
+          {downloadMessage}
+        </div>
+      )}
 
       <main className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-grow overflow-hidden">
         

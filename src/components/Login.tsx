@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { readApiError } from '../utils/api';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -18,17 +19,17 @@ export default function Login() {
         body: JSON.stringify({ username, password })
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Failed to login');
+        setError(await readApiError(res, 'Не удалось войти'));
         return;
       }
 
+      const data = await res.json();
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      navigate('/');
+      navigate(data.user?.mustChangePassword ? '/profile' : '/');
     } catch (err) {
-      setError('Network error');
+      setError('Ошибка сети. Проверьте подключение и попробуйте ещё раз.');
     }
   };
 
@@ -36,7 +37,7 @@ export default function Login() {
     <div className="flex h-screen w-full items-center justify-center bg-[#E4E3E0] font-sans">
       <div className="bg-white p-8 border border-[#141414] shadow-sm w-[400px]">
         <h1 className="text-xl font-bold uppercase tracking-tighter mb-1 text-center">Вход в систему</h1>
-        <p className="text-[10px] opacity-60 text-center mb-6">Fullstack Procurement Suite</p>
+        <p className="text-[10px] opacity-60 text-center mb-6">Система обоснования НМЦК</p>
         
         {error && <div className="bg-red-100 text-red-700 p-2 text-xs mb-4 text-center border border-red-200">{error}</div>}
 

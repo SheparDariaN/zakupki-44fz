@@ -4,7 +4,7 @@ import { generateKpDocx } from '../utils/kpDocxGenerator';
 import KpDocumentPreview from './KpDocumentPreview';
 import AppNav from './AppNav';
 import { Trash2, Plus, RefreshCw, Download, User, ChevronLeft, ChevronRight } from 'lucide-react';
-import { apiFetch } from '../utils/api';
+import { apiFetch, readApiError } from '../utils/api';
 
 const defaultValues: KpDocxData = {
   vendorInfos: [
@@ -31,6 +31,8 @@ export default function KpRequest() {
   const [data, setData] = useState<KpDocxData>(defaultValues);
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [downloadMessage, setDownloadMessage] = useState('');
+  const [downloadMessageError, setDownloadMessageError] = useState(false);
 
   const handleChange = (field: keyof KpDocxData, value: string) => {
     setData(prev => ({ ...prev, [field]: value }));
@@ -79,13 +81,14 @@ export default function KpRequest() {
 
   const handleGenerate = async () => {
     setIsGenerating(true);
+    setDownloadMessage('');
     try {
       await generateKpDocx(data);
 
       try {
         const firstVendor = data.vendorInfos.find(v => v.trim()) || '';
         const name = data.subjectTable || data.subjectIntro || 'Запрос КП';
-        await apiFetch('/api/user/documents', {
+        const res = await apiFetch('/api/user/documents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -94,12 +97,19 @@ export default function KpRequest() {
             type: 'kp'
           })
         });
+        if (!res.ok) {
+          setDownloadMessage(`Документ скачан, но история не сохранена: ${await readApiError(res)}`);
+          setDownloadMessageError(true);
+        }
       } catch (e) {
-        console.error("Failed to save document history");
+        console.error("Failed to save document history", e);
+        setDownloadMessage('Документ скачан, но история не сохранена: ошибка сети.');
+        setDownloadMessageError(true);
       }
     } catch (error) {
       console.error("Failed to generate docx", error);
-      alert("Ошибка при генерации документа");
+      setDownloadMessage('Не удалось сформировать документ. Проверьте данные и попробуйте ещё раз.');
+      setDownloadMessageError(true);
     } finally {
       setIsGenerating(false);
     }
@@ -139,6 +149,12 @@ export default function KpRequest() {
           </button>
         </div>
       </header>
+
+      {downloadMessage && (
+        <div className={`mb-4 border border-[#141414] bg-white px-4 py-3 text-sm ${downloadMessageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
+          {downloadMessage}
+        </div>
+      )}
 
       <main className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-grow overflow-hidden">
 

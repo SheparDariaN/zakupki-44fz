@@ -66,25 +66,43 @@ function securityHeaders(_req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-function loginRateLimit(req: Request, res: Response, next: NextFunction) {
-  const ip = clientIp(req);
-  const now = Date.now();
+function getLoginBucket(ip: string, now = Date.now()): RateBucket {
   let bucket = loginAttempts.get(ip);
   if (!bucket || now >= bucket.resetAt) {
     bucket = { count: 0, resetAt: now + LOGIN_WINDOW_MS };
     loginAttempts.set(ip, bucket);
   }
+  return bucket;
+}
+
+function cleanupLoginAttempts(now = Date.now()) {
+  if (loginAttempts.size <= 1000) return;
+  for (const [key, entry] of loginAttempts) {
+    if (now >= entry.resetAt) loginAttempts.delete(key);
+  }
+}
+
+function recordFailedLogin(req: Request) {
+  const now = Date.now();
+  const bucket = getLoginBucket(clientIp(req), now);
   bucket.count += 1;
-  if (bucket.count > LOGIN_MAX_ATTEMPTS) {
+  cleanupLoginAttempts(now);
+}
+
+function clearFailedLogins(req: Request) {
+  loginAttempts.delete(clientIp(req));
+}
+
+function loginRateLimit(req: Request, res: Response, next: NextFunction) {
+  const ip = clientIp(req);
+  const now = Date.now();
+  const bucket = getLoginBucket(ip, now);
+  if (bucket.count >= LOGIN_MAX_ATTEMPTS) {
     const retryAfterSec = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
     res.setHeader("Retry-After", String(retryAfterSec));
     return res.status(429).json({ error: "Слишком много попыток входа. Попробуйте позже." });
   }
-  if (loginAttempts.size > 1000) {
-    for (const [key, entry] of loginAttempts) {
-      if (now >= entry.resetAt) loginAttempts.delete(key);
-    }
-  }
+  cleanupLoginAttempts(now);
   next();
 }
 
@@ -122,7 +140,7 @@ async function startServer() {
 
     jwt.verify(token, JWT_SECRET, (err, decoded) => {
       if (err || !isAuthUser(decoded)) {
-        return res.status(403).json({ error: "Доступ запрещён" });
+        return res.status(401).json({ error: "Требуется повторный вход" });
       }
       req.user = decoded;
       next();
@@ -139,22 +157,33 @@ async function startServer() {
   app.post("/api/auth/login", loginRateLimit, async (req, res) => {
     const { username, password } = req.body as { username?: unknown; password?: unknown };
     if (typeof username !== "string" || typeof password !== "string" || !username || !password) {
+      recordFailedLogin(req);
       return res.status(400).json({ error: "Укажите имя пользователя и пароль" });
     }
 
     try {
       const user = await db.getUserByUsername(username);
-      if (!user) return res.status(400).json({ error: "Неверный логин или пароль" });
+      if (!user) {
+        recordFailedLogin(req);
+        return res.status(400).json({ error: "Неверный логин или пароль" });
+      }
 
       const validPassword = bcrypt.compareSync(password, user.password);
-      if (!validPassword) return res.status(400).json({ error: "Неверный логин или пароль" });
+      if (!validPassword) {
+        recordFailedLogin(req);
+        return res.status(400).json({ error: "Неверный логин или пароль" });
+      }
 
+      clearFailedLogins(req);
       const token = jwt.sign(
         { id: user.id, username: user.username, role: user.role },
         JWT_SECRET,
         { expiresIn: "24h" }
       );
-      res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+      res.json({
+        token,
+        user: { id: user.id, username: user.username, role: user.role, mustChangePassword: user.mustChangePassword },
+      });
     } catch (err) {
       handleApiError(res, err);
     }
@@ -270,4 +299,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

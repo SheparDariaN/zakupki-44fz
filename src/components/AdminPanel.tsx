@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { User } from 'lucide-react';
 import AppNav from './AppNav';
 import { apiFetch, clearSession, getStoredUser, readApiError } from '../utils/api';
 import type { PublicUser } from '../server/types';
@@ -72,6 +73,9 @@ export default function AdminPanel() {
           </div>
           <div className="flex gap-4 items-center shrink-0 flex-wrap justify-end">
             <AppNav />
+            <a href="/profile" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
+              <User className="w-4 h-4" /> Личный кабинет
+            </a>
             <button onClick={logout} className="text-sm font-bold text-red-600 hover:underline">Выйти</button>
           </div>
         </header>

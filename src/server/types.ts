@@ -6,6 +6,7 @@ export interface AuthUser {
   id: number;
   username: string;
   role: UserRole;
+  mustChangePassword?: boolean;
 }
 
 export interface UserSettings {
@@ -20,6 +21,7 @@ export interface StoredUser {
   password: string;
   role: UserRole;
   settings: UserSettings;
+  mustChangePassword: boolean;
 }
 
 export interface PublicUser {
@@ -49,5 +51,10 @@ export function isUserRole(value: unknown): value is UserRole {
 export function isAuthUser(value: unknown): value is AuthUser {
   if (!value || typeof value !== 'object') return false;
   const v = value as Record<string, unknown>;
-  return typeof v.id === 'number' && typeof v.username === 'string' && isUserRole(v.role);
+  return (
+    typeof v.id === 'number' &&
+    typeof v.username === 'string' &&
+    isUserRole(v.role) &&
+    (v.mustChangePassword === undefined || typeof v.mustChangePassword === 'boolean')
+  );
 }

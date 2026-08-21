@@ -28,6 +28,12 @@ export default function Profile() {
     setMessageError(isError);
   };
 
+  useEffect(() => {
+    if (user?.mustChangePassword) {
+      showMessage('Смените пароль администратора перед продолжением работы.', true);
+    }
+  }, [user?.mustChangePassword]);
+
   const fetchSettings = async () => {
     try {
       const res = await apiFetch('/api/user/settings');
@@ -82,6 +88,9 @@ export default function Profile() {
       });
       if (res.ok) {
         showMessage('Пароль успешно изменен!');
+        if (user) {
+          localStorage.setItem('user', JSON.stringify({ ...user, mustChangePassword: false }));
+        }
         setNewPassword('');
       } else {
         showMessage(await readApiError(res), true);

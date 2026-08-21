@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import MainApp from './components/MainApp';
 import Login from './components/Login';
 import AdminPanel from './components/AdminPanel';
@@ -15,10 +15,16 @@ const ProtectedRoute = ({
   children: React.ReactNode;
   adminOnly?: boolean;
 }) => {
+  const location = useLocation();
+  const user = getStoredUser();
+
   if (!getToken()) {
     return <Navigate to="/login" replace />;
   }
-  if (adminOnly && getStoredUser()?.role !== 'admin') {
+  if (user?.mustChangePassword && location.pathname !== '/profile') {
+    return <Navigate to="/profile" replace />;
+  }
+  if (adminOnly && user?.role !== 'admin') {
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;

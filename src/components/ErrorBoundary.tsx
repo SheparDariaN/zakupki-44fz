@@ -3,13 +3,11 @@ import { Component, type ReactNode } from 'react';
 type Props = { children?: ReactNode };
 type State = { hasError: boolean };
 
-export default class ErrorBoundary extends Component {
-  declare props: Props;
-  declare state: State;
+export default class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false };
 
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false };
   }
 
   static getDerivedStateFromError(): State {
@@ -49,6 +47,6 @@ export default class ErrorBoundary extends Component {
       );
     }
 
-    return this.props.children;
+    return (this as unknown as { props: Props }).props.children;
   }
 }

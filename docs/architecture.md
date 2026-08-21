@@ -57,16 +57,16 @@ Express  server.ts
 
 ## Auth
 
-1. `POST /api/auth/login` → JWT 24h (`id`, `username`, `role`).
+1. `POST /api/auth/login` → JWT 24h (`id`, `username`, `role`), в ответе `user` может быть `mustChangePassword`.
 2. Клиент пишет `token` и `user` в `localStorage`.
-3. `ProtectedRoute` проверяет наличие токена (не валидность).
+3. `ProtectedRoute` проверяет наличие токена (не валидность) и отправляет пользователя с `mustChangePassword` в профиль.
 4. Админ-маршруты дополнительно проверяют `role === 'admin'`.
 
 Секрет: `JWT_SECRET` из env (локально — `.env` через dotenv). В production без переменной процесс не стартует. В development, если env не задан, остаётся прежний fallback. Compose передаёт `JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}`.
 
 ## HTTP-гигиена
 
-SPA и API на одном origin: CORS не включаем. На ответах: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. В production для статики — CSP `default-src 'self'` (плюс `img-src data:`, `style-src 'unsafe-inline'`). Тело JSON ограничено лимитом снимка `state` (256 КБ + запас). Логин: не больше 10 попыток с одного IP за 15 минут.
+SPA и API на одном origin: CORS не включаем. На ответах: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. В production для статики — CSP `default-src 'self'` (плюс `img-src data:`, `style-src 'unsafe-inline'`). Тело JSON ограничено лимитом снимка `state` (256 КБ + запас). Логин: не больше 10 неуспешных попыток с одного IP за 15 минут.
 
 `npm run audit` (`--omit=dev`) смотрит high/critical; сборка Docker его не считает ошибкой.
 
