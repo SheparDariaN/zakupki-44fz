@@ -20,11 +20,14 @@
 
 ### Docker (сервер)
 
+Скопируйте `.env.example` в `.env` и задайте `JWT_SECRET` — Compose без него не поднимется.
+
 ```bash
+cp .env.example .env   # затем замените JWT_SECRET
 docker compose up -d --build
 ```
 
-Приложение: `http://localhost:3000`. БД: `./data/database.json`.
+Приложение: `http://localhost:3000`. Проверка: `GET /api/health`. БД: `./data/database.json`.
 
 ### Без Docker
 
@@ -38,10 +41,27 @@ docker compose up -d --build
 ```bash
 npm install
 npm run dev      # разработка, http://localhost:3000
-npm run build && npm start   # production (задайте NODE_ENV=production)
+npm run build && NODE_ENV=production npm start
+npm test         # формулы НМЦК и сумма прописью
 ```
 
-Переменные — `.env.example`. В проде обязательно задайте `JWT_SECRET`.
+`start.sh` / `start.bat` ставят `NODE_ENV=production` сами. Переменные — `.env.example`. В проде обязательно задайте `JWT_SECRET` (процесс без него не стартует).
+
+После установки или обновления зависимостей смотрите `npm run audit` (`npm audit --omit=dev`). High/critical стоит разобрать; внутренний релиз из‑за аудита не блокируем (в Docker — `|| true`). Зеркало gitverse может не отдавать audit API — тогда команда завершится ошибкой, сборку из‑за этого не останавливаем.
+
+## Границы интеграций
+
+Текущий контур намеренно простой: сервер не парсит Office/PDF/ZIP, не выполняет исходящие HTTP-запросы и не принимает пользовательские файлы. Это снижает риск отказа и вредоносного контента.
+
+Если появится новая интеграция (внешний API, импорт файлов, HTML из внешних систем, SMTP/LDAP и т.д.), заводите **отдельную задачу на ревью безопасности**. Короткий чеклист перед внедрением:
+
+- источники и типы входных данных, лимиты и таймауты;
+- SSRF/allowlist для исходящих URL и запрет доступа к внутренним IP;
+- хранение вложений вне `database.json`, проверка типа по содержимому;
+- отсутствие `innerHTML`/`dangerouslySetInnerHTML` для внешнего HTML;
+- оценка новых npm-пакетов (назначение, лицензия, свежесть, postinstall-скрипты).
+
+Подробный чеклист и правила: [`.cursor/rules/security.mdc`](.cursor/rules/security.mdc).
 
 ## Учётные данные по умолчанию
 
@@ -60,6 +80,8 @@ src/server/db.ts          JSON-БД
 src/App.tsx               Маршруты
 src/components/           Экраны (MainApp, KpRequest, Login, Admin, Profile)
 src/utils/math.ts         Формулы НМЦК
+src/utils/numberToWords.ts Сумма прописью
+src/utils/*.test.ts       Vitest (формулы)
 src/utils/docxGenerator.ts     Word: обоснование НМЦК
 src/utils/kpDocxGenerator.ts   Word: запрос КП
 docs/                     Архитектура, API, предметная область

@@ -23,5 +23,5 @@ if (res.status === 401) { localStorage.removeItem('token'); navigate('/login'); 
 - Маршруты только в `src/App.tsx` внутри `ProtectedRoute` (кроме `/login`). Навигация между НМЦК и КП — `AppNav`.
 - JWT: `localStorage.token`, пользователь — `localStorage.user` (JSON). Не дублируй cookie-сессии.
 - Списки поставщиков/позиций обновляй иммутабельно (`map`/`filter`). Id новых строк — `Date.now().toString()`.
-- Иконки — `lucide-react`. Не подключай `motion`: зависимость есть, в коде не используется.
+- Иконки — `lucide-react`. Не подключай `motion` и `@google/genai` без явной задачи.
 - Тексты UI на русском. Кнопки документов: «Сгенерировать DOCX», история — в `Profile`.

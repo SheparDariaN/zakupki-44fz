@@ -4,6 +4,7 @@ import { generateKpDocx } from '../utils/kpDocxGenerator';
 import KpDocumentPreview from './KpDocumentPreview';
 import AppNav from './AppNav';
 import { Trash2, Plus, RefreshCw, Download, User, ChevronLeft, ChevronRight } from 'lucide-react';
+import { apiFetch } from '../utils/api';
 
 const defaultValues: KpDocxData = {
   vendorInfos: [
@@ -81,26 +82,20 @@ export default function KpRequest() {
     try {
       await generateKpDocx(data);
 
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const firstVendor = data.vendorInfos.find(v => v.trim()) || '';
-          const name = data.subjectTable || data.subjectIntro || 'Запрос КП';
-          await fetch('/api/user/documents', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              name: firstVendor ? `Запрос КП: ${name}` : name,
-              state: data,
-              type: 'kp'
-            })
-          });
-        } catch (e) {
-          console.error("Failed to save document history");
-        }
+      try {
+        const firstVendor = data.vendorInfos.find(v => v.trim()) || '';
+        const name = data.subjectTable || data.subjectIntro || 'Запрос КП';
+        await apiFetch('/api/user/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: firstVendor ? `Запрос КП: ${name}` : name,
+            state: data,
+            type: 'kp'
+          })
+        });
+      } catch (e) {
+        console.error("Failed to save document history");
       }
     } catch (error) {
       console.error("Failed to generate docx", error);
@@ -121,7 +116,6 @@ export default function KpRequest() {
       <header className="flex justify-between items-center mb-6 pb-4 border-b border-[#141414] shrink-0 gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold uppercase tracking-tighter">Запрос коммерческих предложений</h1>
-          <p className="text-[10px] opacity-60">documaker.serverlord.ru</p>
         </div>
         <div className="flex gap-3 items-center shrink-0 flex-wrap justify-end">
           <AppNav />

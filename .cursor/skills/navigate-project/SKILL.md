@@ -27,6 +27,7 @@ description: >-
 
 ```bash
 npm run lint
+npm test
 ```
 
 Для ручной проверки API нужен `npm run dev` и JWT из `/api/auth/login`.

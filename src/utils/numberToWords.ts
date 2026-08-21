@@ -38,9 +38,19 @@ function groupToWords(num: number, gender: 'm' | 'f' = 'm'): string {
   return words.join(' ');
 }
 
+export function formatAmountInWords(amount: number): string {
+  const { words, rublesWord, kopecks, kopecksWord } = numberToWords(amount);
+  return `${words} ${rublesWord} ${kopecks} ${kopecksWord}`;
+}
+
 export function numberToWords(amount: number): { words: string; rublesWord: string; kopecksWord: string; kopecks: string } {
-  const rubles = Math.floor(amount);
-  const kopecks = Math.round((amount - rubles) * 100);
+  const safe = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+  let rubles = Math.floor(safe);
+  let kopecks = Math.round((safe - rubles) * 100);
+  if (kopecks === 100) {
+    rubles += 1;
+    kopecks = 0;
+  }
   const kopecksStr = kopecks.toString().padStart(2, '0');
 
   const rublesWord = getPlural(rubles, ['рубль', 'рубля', 'рублей']);

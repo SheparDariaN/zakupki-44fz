@@ -19,12 +19,25 @@ res.status(400).json({ error: 'User not found' });
 const token = jwt.sign(user, 'hardcoded');
 
 // ✅ GOOD — одинаковое сообщение на логин; секрет из env
-res.status(400).json({ error: 'Invalid credentials' });
+res.status(400).json({ error: 'Неверный логин или пароль' });
 jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
 ```
 
-- Пароль: минимум 5 символов (как в `/api/auth/change-password`). Не возвращай hash в `/api/users`.
+- Пароль: минимум 5 символов при создании пользователя и при смене. Не возвращай hash в `/api/users`.
 - Настройки и документы — только `req.user.id`. Не принимай `userId` из body.
 - `.env` не коммитить. В репо только `.env.example`. Не пиши секреты в правила, логи, DOCX.
-- Дефолт `admin`/`admin` — bootstrap, не документируй его в UI. Не ослабляй JWT fallback ещё сильнее; при правках auth требуй `JWT_SECRET` в prod.
+- Дефолт `admin`/`admin` — bootstrap, не документируй его в UI. Не ослабляй JWT fallback ещё сильнее; в production `JWT_SECRET` обязателен (процесс без него не стартует).
 - История документов содержит полный `state` закупки — не отдавай её другим пользователям и не клади в клиентские логи.
+- Заголовки: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, CSP в production. Не включай CORS «на всякий случай» — origin один.
+- Rate-limit только на логин (перебор `admin`/`admin`). Не ставь глобальный лимитер, пока нагрузка внутренняя.
+- Лимит `express.json` согласован с `MAX_STATE_BYTES`. Не парси чужие Office/ZIP на сервере.
+- Новые npm-пакеты — зачем, лицензия, свежесть, нет ли postinstall. `npm run audit` смотрит high/critical, релиз не блокирует.
+
+Чеклист будущих интеграций (не внедрять «по пути»):
+
+- Любая интеграция = отдельная задача на ревью (угрозы, лимиты, мониторинг, откат), а не «добавить fetch в `server.ts`».
+- Импорт Excel/Word/PDF/ZIP — не на сервере без изолированного контура; не хранить исходники в JSON-БД; учитывать zip-slip, макросы и XXE.
+- Исходящий HTTP (ЕИС, курсы, почта, LDAP) — allowlist URL, таймауты, retry с ограничением; запрет SSRF на внутренние IP/hostname.
+- Файлы и вложения — проверка MIME/типа по содержимому, лимит размера, хранение вне `database.json`, антивирус на периметре.
+- HTML извне — только текст, без `innerHTML` / `dangerouslySetInnerHTML`.
+- Новые npm-пакеты — зафиксировать зачем нужен пакет, проверить лицензию, свежесть релиза и наличие рискованных postinstall-скриптов.

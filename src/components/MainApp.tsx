@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { AppState } from '../types';
-import { formatMoney, formatMoney4, calculateAverage, calculateStandardDeviation, calculateCV } from '../utils/math';
-import { generateDocx } from '../utils/docxGenerator';
+import { formatMoney, formatMoney4, calculateAverage, calculateStandardDeviation, calculateCV, isCvHeterogeneous } from '../utils/math';
+import { generateDocx, METHOD_TEXT } from '../utils/docxGenerator';
+import { formatAmountInWords } from '../utils/numberToWords';
 import { Trash2, Plus, RefreshCw, Download, User } from 'lucide-react';
 import AppNav from './AppNav';
+import { apiFetch } from '../utils/api';
 
 const initialState: AppState = {
   requisites: {
@@ -35,15 +37,10 @@ const initialState: AppState = {
 export default function App() {
   const [state, setState] = useState<AppState>(initialState);
 
-  // Fetch user settings on mount
   useEffect(() => {
     const fetchSettings = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) return;
       try {
-        const res = await fetch('/api/user/settings', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await apiFetch('/api/user/settings');
         if (res.ok) {
           const settings = await res.json();
           setState(prev => ({
@@ -127,27 +124,25 @@ export default function App() {
   };
 
   const handleDocxDownload = async () => {
-    await generateDocx(state);
-    
-    // Save to history
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        await fetch('/api/user/documents', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` 
-          },
-          body: JSON.stringify({ 
-            name: state.requisites.subject || 'Обоснование НМЦК', 
-            state,
-            type: 'nmck'
-          })
-        });
-      } catch (e) {
-        console.error("Failed to save document history");
-      }
+    try {
+      await generateDocx(state);
+    } catch (e) {
+      console.error(e);
+      return;
+    }
+
+    try {
+      await apiFetch('/api/user/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: state.requisites.subject || 'Обоснование НМЦК',
+          state,
+          type: 'nmck'
+        })
+      });
+    } catch (e) {
+      console.error("Failed to save document history");
     }
   };
 
@@ -160,7 +155,6 @@ export default function App() {
       <header className="flex justify-between items-center mb-6 pb-4 border-b border-[#141414] shrink-0 gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold uppercase tracking-tighter">Система Обоснования НМЦК</h1>
-          <p className="text-[10px] opacity-60">documaker.serverlord.ru</p>
         </div>
         <div className="flex gap-3 items-center shrink-0 flex-wrap justify-end">
           <AppNav />
@@ -345,6 +339,7 @@ export default function App() {
 function PreviewContent({ state }: { state: AppState }) {
   const { requisites, suppliers, positions, prices } = state;
   let grandTotal = 0;
+  let hasHeterogeneousCv = false;
 
   // Calculate minimum total among all suppliers
   const supplierTotals = suppliers.map(sup => {
@@ -379,7 +374,7 @@ function PreviewContent({ state }: { state: AppState }) {
           <tr>
             <td className="border border-black p-1 text-center">Используемый метод<br/>определения НМЦ<br/>с обоснованием:</td>
             <td colSpan={3 + suppliers.length + 4} className="border border-black p-1 text-justify">
-              В соответствии со ст. 22 Федерального закона от 05.04.2013 № 44-ФЗ «О контрактной системе в сфере закупок товаров, работ, услуг для обеспечения государственных и муниципальных нужд» расчет начальной (максимальной) цены контракта (далее – НМЦК) произведен методом сопоставимых рыночных цен (анализа рынка) в соответствии с Методическими рекомендациями по применению методов определения начальной (максимальной) цены контракта, цены контракта, заключаемого с единственным поставщиком (подрядчиком, исполнителем), утвержденными Приказом Министерства экономического развития РФ от 2 октября 2013 г. N 567 (далее – Методические рекомендации).
+              {METHOD_TEXT}
             </td>
           </tr>
           <tr>
@@ -421,6 +416,8 @@ function PreviewContent({ state }: { state: AppState }) {
             const cv = calculateCV(posPrices);
             const posTotal = average * pos.quantity;
             grandTotal += posTotal;
+            const heterogeneous = isCvHeterogeneous(cv);
+            if (heterogeneous) hasHeterogeneousCv = true;
 
             return (
               <tr key={pos.id}>
@@ -431,7 +428,12 @@ function PreviewContent({ state }: { state: AppState }) {
                 {supplierCells}
                 <td className="border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap">{formatMoney(average)}</td>
                 <td className="border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap">{formatMoney4(stdDev)}</td>
-                <td className="border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap">{formatMoney(cv)}%</td>
+                <td
+                  className={`border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap${heterogeneous ? ' bg-black text-white font-bold' : ''}`}
+                  title={heterogeneous ? 'Коэффициент вариации превышает 33% — выборка неоднородна (Приказ МЭР № 567)' : undefined}
+                >
+                  {formatMoney(cv)}%
+                </td>
                 <td className="border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap font-bold">{formatMoney(posTotal)}</td>
               </tr>
             );
@@ -443,11 +445,17 @@ function PreviewContent({ state }: { state: AppState }) {
           </tr>
           <tr>
             <td colSpan={4 + suppliers.length + 4} className="border border-black p-1 text-center text-[10pt]">
-              На основании проведенного анализа рынка и расчетов Заказчик принимает решение о минимальном значении цены за единицу, в соответствии с выделенными лимитами бюджетных обязательств. НМЦК составляет: <span className="font-bold text-[14pt]">{formatMoney(minSupplierTotal)}</span> рублей.
+              На основании проведенного анализа рынка и расчетов Заказчик принимает решение о минимальном значении цены за единицу, в соответствии с выделенными лимитами бюджетных обязательств. НМЦК составляет: <span className="font-bold text-[14pt]">{formatMoney(minSupplierTotal)}</span> рублей ({formatAmountInWords(minSupplierTotal)}).
             </td>
           </tr>
         </tbody>
       </table>
+
+      {hasHeterogeneousCv && (
+        <p className="text-[9pt] mt-2">
+          Коэффициент вариации превышает 33% — выборка цен признаётся неоднородной (Методические рекомендации, утверждённые Приказом МЭР № 567).
+        </p>
+      )}
 
       <p className="text-[10pt] mt-4">
         Цена Контракта включает в себя стоимость оказываемых Услуг, а также налоги и сборы, установленные действующим законодательством Российской Федерации.

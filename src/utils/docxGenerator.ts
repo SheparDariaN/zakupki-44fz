@@ -2,8 +2,9 @@ import { Document, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, 
 import { saveAs } from 'file-saver';
 import { AppState } from '../types';
 import { calculateAverage, calculateStandardDeviation, calculateCV, formatMoney, formatMoney4 } from './math';
+import { formatAmountInWords } from './numberToWords';
 
-const METHOD_TEXT = "В соответствии со ст. 22 Федерального закона от 05.04.2013 № 44-ФЗ «О контрактной системе в сфере закупок товаров, работ, услуг для обеспечения государственных и муниципальных нужд» расчет начальной (максимальной) цены контракта (далее – НМЦК) произведен методом сопоставимых рыночных цен (анализа рынка) в соответствии с Методическими рекомендациями по применению методов определения начальной (максимальной) цены контракта, цены контракта, заключаемого с единственным поставщиком (подрядчиком, исполнителем), утвержденными Приказом Министерства экономического развития РФ от 2 октября 2013 г. N 567 (далее – Методические рекомендации).";
+export const METHOD_TEXT = "В соответствии со ст. 22 Федерального закона от 05.04.2013 № 44-ФЗ «О контрактной системе в сфере закупок товаров, работ, услуг для обеспечения государственных и муниципальных нужд» расчет начальной (максимальной) цены контракта (далее – НМЦК) произведен методом сопоставимых рыночных цен (анализа рынка) в соответствии с Методическими рекомендациями по применению методов определения начальной (максимальной) цены контракта, цены контракта, заключаемого с единственным поставщиком (подрядчиком, исполнителем), утвержденными Приказом Министерства экономического развития РФ от 2 октября 2013 г. N 567 (далее – Методические рекомендации).";
 
 const createCell = (text: string | Paragraph[], colSpan: number = 1, align: AlignmentType = AlignmentType.CENTER, bold: boolean = false, valign: VerticalAlign = VerticalAlign.CENTER, fontSize: number = 20) => {
   const content = typeof text === 'string' 
@@ -126,7 +127,7 @@ export const generateDocx = async (state: AppState) => {
       children: [
         new TextRun({ text: "На основании проведенного анализа рынка и расчетов Заказчик принимает решение о минимальном значении цены за единицу, в соответствии с выделенными лимитами бюджетных обязательств. НМЦК составляет: ", font: "Times New Roman", size: 20 }),
         new TextRun({ text: formatMoney(minSupplierTotal), font: "Times New Roman", size: 28, bold: true }), // 14pt Bold
-        new TextRun({ text: " рублей.", font: "Times New Roman", size: 20 })
+        new TextRun({ text: ` рублей (${formatAmountInWords(minSupplierTotal)}).`, font: "Times New Roman", size: 20 })
       ],
       alignment: AlignmentType.CENTER
     })

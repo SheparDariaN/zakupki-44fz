@@ -9,7 +9,7 @@
 
 ```
 server.ts                 Express: API + Vite middleware (dev) / static SPA (prod)
-src/server/db.ts          JSON-файл БД (SQL-подобный фасад get/all/run)
+src/server/db.ts          JSON-файл БД (типизированные методы, атомарный save)
 src/App.tsx               React Router: /login / /kp /admin /profile
 src/types.ts              Общие типы AppState, KpDocxData
 src/components/           Экраны UI (default export = имя файла)
@@ -34,9 +34,7 @@ docs/                     Архитектура, API, предметная об
 | Документы | `docx` + `file-saver`; ZIP запросов КП через `jszip` |
 | Деплой | Docker multi-stage, `docker-compose` порт 3000, volume `./data` |
 
-Менеджер пакетов: **npm** (`package-lock.json`). Docker делает `npm ci`. `bun.lock` — артефакт AI Studio, не источник истины.
-
-Неиспользуемые зависимости (не подключать без задачи): `@google/genai`, `motion`, `@types/better-sqlite3`.
+Менеджер пакетов: **npm** (`package-lock.json`). Docker делает `npm ci`. `bun.lock` — артефакт AI Studio, не источник истины. Не подключай `@google/genai`, `motion`, SQLite без явной задачи.
 
 ## Команды
 
@@ -44,9 +42,11 @@ docs/                     Архитектура, API, предметная об
 npm install          # зависимости (registry в .npmrc)
 npm run dev          # tsx server.ts — API + Vite HMR, порт 3000
 npm run build        # vite build + esbuild server.ts → dist/server.cjs
-npm start            # node dist/server.cjs (нужен NODE_ENV=production)
+npm start            # node dist/server.cjs (нужен NODE_ENV=production и JWT_SECRET)
 npm run lint         # tsc --noEmit
-docker compose up -d --build
+npm test             # vitest: math.ts, numberToWords
+npm run audit        # npm audit --omit=dev (не блокирует релиз)
+docker compose up -d --build  # нужен JWT_SECRET в .env
 ```
 
 Алиас `@/` указывает на **корень репозитория**, не на `src/`. Предпочитай относительные импорты как в текущем коде (`../types`, `./math`).
@@ -57,8 +57,8 @@ docker compose up -d --build
 2. Генерация DOCX только на клиенте. Сервер хранит JSON-снимок `state` в истории, не собирает Word.
 3. История документов живёт 3 суток и чистится при `getDocuments`.
 4. Дефолтный админ `admin`/`admin` создаётся при отсутствии пользователя — не хардкодить пароль в UI.
-5. Секреты: `JWT_SECRET`, `GEMINI_API_KEY` только из env. Не коммитить `database.json`, `.env`, `data/`.
-6. Новый API: маршрут в `server.ts`, данные через методы `JSONDatabase` (не новый SQL-диалект), JWT на всё кроме `/api/auth/login`.
+5. Секреты: `JWT_SECRET` только из env. В production обязателен. Не коммитить `database.json`, `.env`, `data/`.
+6. Новый API: маршрут в `server.ts`, данные через методы `JSONDatabase` (не новый SQL-диалект), JWT на всё кроме `/api/auth/login` и `/api/health`.
 7. Не раздувать стек (Redux, Prisma, SQLite), пока пользователь явно не попросил.
 
 ## Куда смотреть по задаче
@@ -68,7 +68,7 @@ docker compose up -d --build
 | Роут / экран | `src/App.tsx`, `src/components/*` |
 | API / JWT | `server.ts` |
 | Пользователи, настройки, история | `src/server/db.ts` |
-| Формулы НМЦК | `src/utils/math.ts`, затем `MainApp.tsx` и `docxGenerator.ts` |
+| Формулы НМЦК | `src/utils/math.ts`, тесты `src/utils/*.test.ts`, затем `MainApp.tsx` и `docxGenerator.ts` |
 | Шаблон обоснования | `src/utils/docxGenerator.ts` |
 | Шаблон запроса КП | `src/utils/kpDocxGenerator.ts`, превью `KpDocumentPreview.tsx` |
 | Типы состояния | `src/types.ts` |

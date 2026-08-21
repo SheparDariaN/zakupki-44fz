@@ -6,6 +6,7 @@ services:
       - "3000:3000"
     environment:
       DB_FILE: /app/data/database.json
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
     volumes:
       - ./data:/app/data
     restart: always

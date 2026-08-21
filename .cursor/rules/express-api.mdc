@@ -6,27 +6,27 @@ alwaysApply: false
 
 # Express API
 
-Один процесс: `server.ts`. Dev (`NODE_ENV !== production`) — Vite middleware; prod — `express.static('dist')` + SPA fallback. Слушай `0.0.0.0:3000`. CORS уже включён.
+Один процесс: `server.ts`. Первым импортом — `dotenv/config`. Dev (`NODE_ENV !== production`) — динамический `import("vite")` и middleware; prod — `express.static('dist')` + SPA fallback. Слушай `0.0.0.0:3000`. CORS не нужен (SPA и API на одном origin). Заголовки: nosniff, `X-Frame-Options: DENY`, `Referrer-Policy`, в prod CSP на статику. `GET /api/health` публичный (`{ status: "ok" }`). В production без `JWT_SECRET` процесс не стартует.
 
 ```ts
-// ❌ BAD — новый SQL в db.get без парсера; секрет в коде
-app.get('/api/foo', async (req, res) => {
+// ❌ BAD — SQL в db.get; req: any; английские ошибки
+app.get('/api/foo', async (req: any, res: any) => {
   const rows = await db.get('SELECT * FROM foo JOIN bar');
 });
 
-// ✅ GOOD — метод JSONDatabase + JWT + единообразные ошибки
-app.get('/api/foo', authenticateToken, async (req, res) => {
+// ✅ GOOD — метод JSONDatabase + JWT + единообразные ошибки на русском
+app.get('/api/foo', authenticateToken, async (req: AuthedRequest, res: Response) => {
   try {
     res.json(await db.listFoo(req.user.id));
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    handleApiError(res, err);
   }
 });
 ```
 
-- Порядок: JSON parser → маршруты `/api/*` → Vite/static. Не ставь static выше API.
-- Логин публичный. Остальное — `authenticateToken`. Админские `/api/users` — ещё `isAdmin`.
-- JWT: `id`, `username`, `role`; TTL 24h; секрет из `process.env.JWT_SECRET`.
-- Ответы: `{ error: string }` на 4xx/5xx, `{ success: true, ... }` на мутации. Не меняй поля, которые читает UI (`token`, `user`, settings).
+- Порядок: JSON parser → `/api/health` и маршруты `/api/*` → Vite/static. Не ставь static выше API.
+- Логин и health публичные. Остальное — `authenticateToken`. Админские `/api/users` — ещё `isAdmin`. На `/api/auth/login` — in-memory rate-limit (10 попыток / 15 мин с IP).
+- JWT: `id`, `username`, `role`; TTL 24h; секрет из `process.env.JWT_SECRET` (в prod обязателен). Типизируй `req.user` через `AuthUser` / `AuthedRequest`, не `req: any`.
+- Ответы: `{ error: string }` на 4xx/5xx (тексты для UI на русском), `{ success: true, ... }` на мутации. Не меняй поля, которые читает UI (`token`, `user`, settings).
+- Лимит `express.json` согласован с `MAX_STATE_BYTES` (256 КБ снимка + запас).
 - Сборку сервера не ломай: esbuild `server.ts` → `dist/server.cjs`, `packages=external`.

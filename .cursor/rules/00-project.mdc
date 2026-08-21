@@ -24,6 +24,6 @@ Fullstack SPA: React 19 + Vite 6 + Express 4 + JSON-файл БД + клиент
 
 ## Не делай
 
-- Не добавляй Redux, Prisma, SQLite, серверную генерацию DOCX, `@google/genai` без явной задачи.
+- Не добавляй Redux, Prisma, SQLite, серверную генерацию DOCX, `@google/genai`, `motion` без явной задачи.
 - Не коммить `.env`, `database.json`, содержимое `data/`.
 - Не меняй `JWT_SECRET` fallback и дефолт `admin`/`admin` в сторону ещё более слабой схемы.

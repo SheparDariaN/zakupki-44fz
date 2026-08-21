@@ -8,10 +8,11 @@
 |-------|---------|----------------|
 | Dev | `npm run dev` → `tsx server.ts` | API + Vite HMR, порт 3000 |
 | Prod build | `npm run build` | `vite build` (SPA) + esbuild `server.ts` → `dist/server.cjs` |
-| Prod run | `NODE_ENV=production npm start` | static `dist/` + API |
-| Docker | `docker compose up -d --build` | image `nmck-app`, volume `./data` |
+| Prod run | `NODE_ENV=production npm start` | static `dist/` + API; `JWT_SECRET` обязателен |
+| Docker | `docker compose up -d --build` | image `nmck-app`, volume `./data`, `USER node`, health `/api/health` |
+| Тесты | `npm test` | Vitest, формулы `math.ts` и `numberToWords.ts` |
 
-`tsx` исполняет TypeScript на лету. Production-бандл сервера — CommonJS (`--format=cjs --packages=external`), внешние пакеты берутся из `node_modules`.
+`tsx` исполняет TypeScript на лету. Production-бандл сервера — CommonJS (`--format=cjs --packages=external`), внешние пакеты берутся из `node_modules`. Vite подключается только в dev через динамический `import("vite")`. `dotenv/config` читается в `server.ts` до `JWT_SECRET`.
 
 Алиас Vite/TS `@/*` → корень репозитория. В коде фактически используются относительные пути.
 
@@ -41,7 +42,7 @@ Express  server.ts
 
 ## Данные
 
-Файл JSON (не SQLite, несмотря на `@types/better-sqlite3` в devDependencies). Структура:
+Файл JSON (не SQLite). Структура:
 
 ```json
 {
@@ -52,7 +53,7 @@ Express  server.ts
 
 Путь: `DB_FILE` или `database.json` в cwd. Compose задаёт `/app/data/database.json`.
 
-Методы `get` / `all` / `run` понимают только несколько захардкоженных SQL-строк для auth. Новые выборки — отдельные методы класса.
+Выборки — явные методы класса (`getUserByUsername`, `createUser`, `addDocument`, …), не SQL-фасад. Запись на диск атомарная (temp-файл + `rename`) и только после мутации.
 
 ## Auth
 
@@ -61,11 +62,23 @@ Express  server.ts
 3. `ProtectedRoute` проверяет наличие токена (не валидность).
 4. Админ-маршруты дополнительно проверяют `role === 'admin'`.
 
-Секрет: `JWT_SECRET`. Fallback в коде слабый — в проде задавать через env.
+Секрет: `JWT_SECRET` из env (локально — `.env` через dotenv). В production без переменной процесс не стартует. В development, если env не задан, остаётся прежний fallback. Compose передаёт `JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}`.
 
-## Зависимости, которые не используются
+## HTTP-гигиена
 
-`@google/genai`, `motion`, `@types/better-sqlite3` — наследие шаблона AI Studio. Не импортировать «на всякий случай». `GEMINI_API_KEY` в `.env.example` к рантайму приложения не привязан.
+SPA и API на одном origin: CORS не включаем. На ответах: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. В production для статики — CSP `default-src 'self'` (плюс `img-src data:`, `style-src 'unsafe-inline'`). Тело JSON ограничено лимитом снимка `state` (256 КБ + запас). Логин: не больше 10 попыток с одного IP за 15 минут.
+
+`npm run audit` (`--omit=dev`) смотрит high/critical; сборка Docker его не считает ошибкой.
+
+## Границы интеграций
+
+Архитектура держит минимальную поверхность атаки:
+
+- сервер хранит JSON-снимки и не парсит пользовательские `.docx/.xlsx/.pdf/.zip`;
+- генерация DOCX выполняется только на клиенте;
+- исходящие HTTP-запросы к внешним системам не используются.
+
+Любая новая интеграция (импорт файлов, внешние API, SMTP/LDAP, HTML из внешних источников) оформляется отдельной задачей с ревью рисков по чеклисту в `.cursor/rules/security.mdc`.
 
 ## UI-конвенции
 
