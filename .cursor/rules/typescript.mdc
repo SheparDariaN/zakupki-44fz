@@ -1,0 +1,23 @@
+---
+description: TypeScript ESM, bundler resolution и типы проекта
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# TypeScript
+
+`tsconfig`: `module` ESNext, `moduleResolution` bundler, `jsx` react-jsx, `noEmit`, `allowImportingTsExtensions`. Скрипт проверки: `npm run lint` (`tsc --noEmit`).
+
+```ts
+// ❌ BAD — any на границах API и домена
+const user: any = JSON.parse(localStorage.getItem('user') || '{}');
+
+// ✅ GOOD — явный тип, узкий unknown на parse
+interface AuthUser { id: number; username: string; role: 'admin' | 'user' }
+```
+
+- Новые сущности описывай в `src/types.ts` (`AppState`, `KpDocxData`, …), не дублируй inline-объекты в генераторах и UI.
+- Предпочитай `import type` для типов. Относительные импорты (`../types`), не `@/` — алиас указывает на корень репо.
+- Не добавляй `any` в новый код. На Express-middleware типизируй `req` через расширение или узкий интерфейс, а не `req: any`.
+- Синхронный bcrypt (`hashSync`/`compareSync`) уже принят в проекте — не смешивай с async API без нужды.
+- Не включай `experimentalDecorators` в новом коде: флаг в tsconfig наследие AI Studio, декораторы не используются.

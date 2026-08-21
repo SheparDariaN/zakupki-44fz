@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    container_name: nmck-app
+    ports:
+      - "3000:3000"
+    environment:
+      DB_FILE: /app/data/database.json
+    volumes:
+      - ./data:/app/data
+    restart: always

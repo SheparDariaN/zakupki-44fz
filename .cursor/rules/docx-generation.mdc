@@ -1,0 +1,25 @@
+---
+description: Клиентская генерация DOCX (docx + file-saver + jszip)
+globs:
+  - src/utils/*docx*.ts
+  - src/components/KpDocumentPreview.tsx
+alwaysApply: false
+---
+
+# Генерация DOCX
+
+Документы собираются в браузере библиотекой `docx`, скачиваются через `file-saver`. Сервер не рендерит Word — только сохраняет JSON `state` в историю.
+
+```ts
+// ❌ BAD — серверный Packer или смена шрифта шаблона
+await fetch('/api/render-docx', { method: 'POST', body: state });
+
+// ✅ GOOD — клиентский генератор, затем опционально POST /api/user/documents
+await generateDocx(state);
+```
+
+- НМЦК: `generateDocx(AppState)` — альбомная A4, поля ~1 см, Times New Roman. Юридический абзац `METHOD_TEXT` не переписывать.
+- Запрос КП: `generateKpDocx(KpDocxData)` — по файлу на каждого вендора, несколько файлов паковать `JSZip`. Превью обязано совпадать с DOCX: правь оба (`kpDocxGenerator.ts` и `KpDocumentPreview.tsx`).
+- Размеры шрифта в `docx` — half-points (`size: 20` = 10pt). Не ставь CSS-пиксели.
+- После успешной генерации пиши историю: `type: 'nmck' | 'kp'`, `name`, полный `state`.
+- Не подключай `html-docx`, `pdfkit` и серверные шаблоны без задачи.

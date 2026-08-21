@@ -1,0 +1,29 @@
+---
+description: Формулы НМЦК, округление и согласованность UI с DOCX
+globs:
+  - src/utils/math.ts
+  - src/utils/numberToWords.ts
+  - src/components/MainApp.tsx
+alwaysApply: false
+---
+
+# Расчёты НМЦК
+
+Единственный источник формул — `src/utils/math.ts`. Генератор DOCX и таблица в `MainApp` должны считать одинаково.
+
+```ts
+// ❌ BAD — своё округление и деление на N
+const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+
+// ✅ GOOD
+const avg = calculateAverage(posPrices); // 2 знака
+const stdDev = calculateStandardDeviation(posPrices, avg); // выборка N-1
+const cv = calculateCV(posPrices); // (std/avg)*100, 2 знака
+```
+
+- В среднее/СКО/CV попадают только цены `> 0`. Пустые ячейки — не нули в выборке.
+- НМЦК позиции в таблице = средняя цена × количество. Итого таблицы = сумма позиций.
+- Итог в заключении DOCX — **минимум суммы по поставщикам** (`minSupplierTotal`), не итог средних. Не «исправляй» это без задачи: так зафиксировано в шаблоне.
+- Деньги: `formatMoney` (2 знака, ru-RU), СКО — `formatMoney4`. Пропись — `numberToWords`.
+- НДС: `calculateReducedPrice` (`С НДС` → `/ 1.2`). Не меняй ставку 20% без запроса.
+- CV > 33% в методике МЭР — сигнал неоднородности; визуальную пометку не удаляй, если она есть в UI.

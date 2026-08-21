@@ -1,0 +1,27 @@
+---
+description: React 19, Router 7 и паттерны экранов SPA
+globs: "src/**/*.tsx"
+alwaysApply: false
+---
+
+# React UI
+
+Функциональные компоненты, default export, имя файла = экран (`Login.tsx`, `Profile.tsx`). Состояние экрана — `useState` + `AppState` / `KpDocxData`. Глобальный стор не вводи.
+
+```tsx
+// ❌ BAD — токен в каждом экране копипастой без обработки 401
+const res = await fetch('/api/user/settings');
+
+// ✅ GOOD — Bearer из localStorage, проверка res.ok, редирект на /login при 401
+const token = localStorage.getItem('token');
+const res = await fetch('/api/user/settings', {
+  headers: { Authorization: `Bearer ${token}` },
+});
+if (res.status === 401) { localStorage.removeItem('token'); navigate('/login'); }
+```
+
+- Маршруты только в `src/App.tsx` внутри `ProtectedRoute` (кроме `/login`). Навигация между НМЦК и КП — `AppNav`.
+- JWT: `localStorage.token`, пользователь — `localStorage.user` (JSON). Не дублируй cookie-сессии.
+- Списки поставщиков/позиций обновляй иммутабельно (`map`/`filter`). Id новых строк — `Date.now().toString()`.
+- Иконки — `lucide-react`. Не подключай `motion`: зависимость есть, в коде не используется.
+- Тексты UI на русском. Кнопки документов: «Сгенерировать DOCX», история — в `Profile`.

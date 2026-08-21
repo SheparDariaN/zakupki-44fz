@@ -1,0 +1,29 @@
+---
+description: Карта проекта НМЦК, стек, команды и инварианты для любого изменения
+alwaysApply: true
+---
+
+# Проект zakupki (НМЦК)
+
+Fullstack SPA: React 19 + Vite 6 + Express 4 + JSON-файл БД + клиентская генерация DOCX. Порт 3000. Язык UI и документов — русский.
+
+## Ориентация
+
+Сначала `AGENTS.md` и `docs/architecture.md`. Не сканируй `node_modules/`, `dist/`, `data/`.
+
+- Роутер: `src/App.tsx`. Калькулятор НМЦК: `src/components/MainApp.tsx` (экспорт назван `App` — не путать).
+- API: только `server.ts`. Данные: `src/server/db.ts` (это не SQLite).
+- Типы: `src/types.ts`. Формулы: `src/utils/math.ts`. Word: `src/utils/docxGenerator.ts`, `src/utils/kpDocxGenerator.ts`.
+- Пакеты: npm + `package-lock.json`. Не переключай на bun/yarn.
+
+## Делай
+
+- Малые точечные правки в существующих файлах. Новый экран — компонент в `src/components/` + Route в `App.tsx`.
+- Защищённые API: `authenticateToken`; админские — ещё `isAdmin`.
+- Тексты 44-ФЗ и Приказа № 567 копируй из текущих генераторов, не выдумывай.
+
+## Не делай
+
+- Не добавляй Redux, Prisma, SQLite, серверную генерацию DOCX, `@google/genai` без явной задачи.
+- Не коммить `.env`, `database.json`, содержимое `data/`.
+- Не меняй `JWT_SECRET` fallback и дефолт `admin`/`admin` в сторону ещё более слабой схемы.

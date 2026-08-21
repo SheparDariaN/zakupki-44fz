@@ -1,0 +1,26 @@
+---
+description: JSON-файл БД, фасад get/all/run и сохранение на диск
+globs: "src/server/**"
+alwaysApply: false
+---
+
+# JSON Database
+
+`JSONDatabase` в `src/server/db.ts` пишет один файл: `process.env.DB_FILE` или `./database.json`. В Docker это `/app/data/database.json`. Это не SQLite: строки `get`/`all`/`run` — ручной разбор подстрок.
+
+```ts
+// ❌ BAD — новый SQL, который фасад не понимает
+await db.get('SELECT * FROM users WHERE id = ?', [id]);
+
+// ✅ GOOD — явный метод + save() после мутации
+async getUserById(id: number) {
+  return this.data.users.find((u) => u.id === id) ?? null;
+}
+```
+
+- Коллекции: `users` (id, username, password hash, role, settings), `documents` (id, userId, name, state, type `'nmck'|'kp'`, createdAt).
+- После изменения массивов всегда `await this.save()` (mkdir + pretty JSON).
+- История: в `getDocuments` удаляй записи старше 3 суток для всех пользователей, затем фильтруй по `userId`.
+- Пароли только bcrypt. Не логируй hash и `state` документов целиком.
+- Конкурентная запись не защищена lock-файлом: не добавляй долгие циклы между read и save.
+- Дефолтный admin создаётся только если нет пользователя `admin`. Не сбрасывай пароль при каждом старте.

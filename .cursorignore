@@ -1,0 +1,17 @@
+# Keep agent context small. Do not hide source, docs, or Cursor rules.
+
+node_modules/
+dist/
+build/
+coverage/
+data/
+database.json
+*.log
+*.tsbuildinfo
+.vite/
+.git/
+bun.lock
+package-lock.json
+assets/
+*.docx
+*.zip

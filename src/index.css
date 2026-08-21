@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #E4E3E0;
+  --ink: #141414;
+  --line: #141414;
+  --f-mono: 'Courier New', Courier, monospace;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  margin: 0; 
+  height: 100%; 
+  display: flex; 
+  flex-direction: column; 
+  overflow: hidden;
+}
+
+.data-grid { 
+  border: 1px solid var(--line); 
+  border-collapse: collapse; 
+} 
+.data-grid th, .data-grid td { 
+  border: 1px solid var(--line); 
+  padding: 6px 10px; 
+  font-size: 12px; 
+} 
+.col-header { 
+  font-family: 'Georgia', serif; 
+  font-style: italic; 
+  font-size: 11px; 
+  opacity: 0.6; 
+  text-transform: uppercase; 
+  letter-spacing: 0.05em; 
+  background: rgba(20,20,20,0.05); 
+} 
+.mono { 
+  font-family: var(--f-mono); 
+} 
+.paper { 
+  background: white; 
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
+  width: 100%; 
+  height: 100%; 
+  border-radius: 2px; 
+  position: relative; 
+  padding: 40px; 
+} 
+.btn-brutal { 
+  border: 1px solid var(--line); 
+  padding: 8px 16px; 
+  font-size: 12px; 
+  text-transform: uppercase; 
+  font-weight: 600; 
+  background: transparent; 
+  transition: all 0.2s; 
+  cursor: pointer; 
+} 
+.btn-brutal:hover { 
+  background: var(--ink); 
+  color: var(--bg); 
+} 
+.status-chip { 
+  font-size: 10px; 
+  padding: 2px 6px; 
+  border: 1px solid var(--ink); 
+  border-radius: 99px; 
+} 
+.scroll-area { 
+  overflow-y: auto; 
+  scrollbar-width: thin; 
+  scrollbar-color: var(--ink) transparent; 
+}
+.capitalize-first::first-letter {
+  text-transform: uppercase;
+}

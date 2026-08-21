@@ -1,0 +1,32 @@
+---
+description: Express 4 API, JWT-middleware и контракт JSON-ответов
+globs: "server.ts"
+alwaysApply: false
+---
+
+# Express API
+
+Один процесс: `server.ts`. Dev (`NODE_ENV !== production`) — Vite middleware; prod — `express.static('dist')` + SPA fallback. Слушай `0.0.0.0:3000`. CORS уже включён.
+
+```ts
+// ❌ BAD — новый SQL в db.get без парсера; секрет в коде
+app.get('/api/foo', async (req, res) => {
+  const rows = await db.get('SELECT * FROM foo JOIN bar');
+});
+
+// ✅ GOOD — метод JSONDatabase + JWT + единообразные ошибки
+app.get('/api/foo', authenticateToken, async (req, res) => {
+  try {
+    res.json(await db.listFoo(req.user.id));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+```
+
+- Порядок: JSON parser → маршруты `/api/*` → Vite/static. Не ставь static выше API.
+- Логин публичный. Остальное — `authenticateToken`. Админские `/api/users` — ещё `isAdmin`.
+- JWT: `id`, `username`, `role`; TTL 24h; секрет из `process.env.JWT_SECRET`.
+- Ответы: `{ error: string }` на 4xx/5xx, `{ success: true, ... }` на мутации. Не меняй поля, которые читает UI (`token`, `user`, settings).
+- Сборку сервера не ломай: esbuild `server.ts` → `dist/server.cjs`, `packages=external`.

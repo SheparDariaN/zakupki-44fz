@@ -1,0 +1,26 @@
+---
+description: Docker multi-stage, compose volume и production-сборка
+globs:
+  - Dockerfile
+  - docker-compose.yml
+  - .dockerignore
+alwaysApply: false
+---
+
+# Docker
+
+Multi-stage: `node:22-alpine`, builder `npm ci` + `npm run build` + `npm prune --omit=dev`, runner копирует `dist` и `node_modules`. CMD: `node dist/server.cjs`. Compose: сервис `app`, контейнер `nmck-app`, `3000:3000`, `DB_FILE=/app/data/database.json`, volume `./data:/app/data`.
+
+```dockerfile
+# ❌ BAD — npm install в runner, копирование исходников в прод
+COPY . .
+RUN npm install && npm start
+
+# ✅ GOOD — lockfile в builder, в runner только dist + prod node_modules
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci
+```
+
+- Registry задан в `.npmrc` (`npm-mirror.gitverse.ru`) — копируй `.npmrc` в builder, иначе `npm ci` падает.
+- Не копируй `src/`, `.env`, `database.json` в runner. Секреты — `environment` в compose.
+- После смены зависимостей обновляй `package-lock.json` (не bun). Проверяй, что `.dockerignore` скрывает `data/`, `.cursor`, `docs`.

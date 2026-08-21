@@ -1,0 +1,28 @@
+# Dependencies and builds
+node_modules/
+build/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Secrets and local data
+.env*
+!.env.example
+database.json
+/data/*
+!/data/.gitkeep
+
+# Generated documents
+*.docx
+*.zip
+
+# Logs and OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+*.swp

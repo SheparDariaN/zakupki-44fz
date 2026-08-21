@@ -1,0 +1,22 @@
+---
+description: Tailwind CSS 4 и визуальный язык brutalist paper
+globs: "src/**/*.{css,tsx}"
+alwaysApply: false
+---
+
+# Tailwind и визуал
+
+Tailwind 4 через `@tailwindcss/vite`. В CSS только `@import "tailwindcss"` и токены в `src/index.css`: `--bg #E4E3E0`, `--ink #141414`, `.btn-brutal`, `.data-grid`, `.paper`, `.col-header`, `.scroll-area`.
+
+```tsx
+// ❌ BAD — произвольная палитра / скругления shadcn
+<button className="rounded-xl bg-blue-600 text-white shadow-lg">OK</button>
+
+// ✅ GOOD — существующие утилиты и токены
+<button className="btn-brutal bg-white">Сбросить</button>
+```
+
+- Экраны: фон `#E4E3E0`, карточки белые, граница `border-[#141414]`, uppercase-заголовки, мелкие лейблы `text-[9px]`–`text-[11px]`.
+- Не вводи CSS-модули, styled-components, новый UI-kit. Иконки `lucide-react`, размер 3.5–4.
+- Таблицы калькулятора — класс `data-grid`. Не заменяй их на div-grid без нужды.
+- `body` с `overflow: hidden` — новые страницы либо вписываются в `h-screen`, либо сами управляют скроллом (`scroll-area`).
