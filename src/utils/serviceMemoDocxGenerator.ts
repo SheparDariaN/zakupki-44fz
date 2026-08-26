@@ -32,8 +32,7 @@ function splitMemoLines(value: string) {
     .filter(Boolean);
 }
 
-function getMemoRequesterNameInflection(data: ServiceMemoData) {
-  const snapshot = data.requesterNameInflection;
+function getMemoRequesterNameInflection(snapshot?: ServiceMemoData["requesterNameInflection"]) {
   const nominative = typeof snapshot?.nominative === "string" ? snapshot.nominative.trim() : "";
   const genitive = typeof snapshot?.genitive === "string" ? snapshot.genitive.trim() : "";
   if (!nominative || !genitive) return null;
@@ -46,16 +45,7 @@ export function formatServiceMemoHeaderRequester(
   requesterNameInflection?: ServiceMemoData["requesterNameInflection"]
 ) {
   const lines = splitMemoLines(requester);
-  const snapshot = getMemoRequesterNameInflection({
-    purpose: "",
-    subjectIntro: "",
-    subjectTable: "",
-    requester,
-    addressee: "",
-    contractServiceHead: "",
-    date: "",
-    requesterNameInflection,
-  });
+  const snapshot = getMemoRequesterNameInflection(requesterNameInflection);
 
   if (snapshot && lines[lines.length - 1] === snapshot.nominative) {
     const head = lines.slice(0, -1).join("\n");

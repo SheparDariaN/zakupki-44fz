@@ -131,9 +131,16 @@ function getLastMeaningfulLine(value: string): string {
   return lines[lines.length - 1] ?? '';
 }
 
-function withMemoRequesterInflection(state: ServiceMemoData, settings?: AutofillUserSettings): ServiceMemoData {
+function omitMemoRequesterInflection(state: ServiceMemoData): ServiceMemoData {
+  const { requesterNameInflection: _requesterNameInflection, ...nextState } = state;
+  return nextState;
+}
+
+export function syncMemoRequesterInflection(state: ServiceMemoData, settings?: AutofillUserSettings): ServiceMemoData {
   const executorName = compactUserSetting(settings, 'executorName');
-  if (!executorName || getLastMeaningfulLine(state.requester) !== executorName) return state;
+  if (!executorName || getLastMeaningfulLine(state.requester) !== executorName) {
+    return state.requesterNameInflection ? omitMemoRequesterInflection(state) : state;
+  }
 
   return {
     ...state,
@@ -351,7 +358,7 @@ export function applyAutofill<K extends DocumentKind>(
   }
 
   const finalState = documentKind === 'memo'
-    ? withMemoRequesterInflection(nextState as ServiceMemoData, context.userSettings) as DocumentStateByKind[K]
+    ? syncMemoRequesterInflection(nextState as ServiceMemoData, context.userSettings) as DocumentStateByKind[K]
     : nextState;
 
   return { state: finalState, suggestions, changed };

@@ -6,6 +6,7 @@ import {
   formatDateRu,
   formatInitials,
   formatSignatureName,
+  hydrateInflection,
   resolveInflection,
   suggestInflection,
   syncInflection,
@@ -94,6 +95,28 @@ describe('morphology inflection helpers', () => {
       nominative: 'Иванов Иван Иванович',
       genitive: '',
     }, 'genitive')).toBe('Иванова Ивана Ивановича');
+  });
+
+  it('гидратирует пустые формы авто-подсказкой при непустом именительном', () => {
+    expect(hydrateInflection({
+      nominative: 'Иванов Иван Иванович',
+      genitive: '',
+      dative: '',
+    })).toEqual({
+      nominative: 'Иванов Иван Иванович',
+      genitive: 'Иванова Ивана Ивановича',
+      dative: 'Иванову Ивану Ивановичу',
+    });
+
+    expect(hydrateInflection({
+      nominative: 'Иванов Иван Иванович',
+      genitive: 'ручной родительный',
+      dative: '',
+    })).toEqual({
+      nominative: 'Иванов Иван Иванович',
+      genitive: 'ручной родительный',
+      dative: 'Иванову Ивану Ивановичу',
+    });
   });
 
   it('сохраняет ручные формы, пока именительный падеж не изменился', () => {

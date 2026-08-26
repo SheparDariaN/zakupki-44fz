@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { AppState, Counterparty, KpDocxData, ServiceMemoData } from '../types';
-import { applyAutofill, formatCounterpartyVendorInfo, resolveAutofill } from './autofill';
+import { applyAutofill, formatCounterpartyVendorInfo, resolveAutofill, syncMemoRequesterInflection } from './autofill';
 import { DOCUMENT_TEMPLATE_SCHEMAS } from './templateSchemas';
 import type { TemplateTransform } from './templateTypes';
 import { formatContactPersonWithPhone } from './templateTransforms';
+import { getServiceMemoHeaderLines } from '../utils/serviceMemoDocxGenerator';
 
 function kpState(overrides: Partial<KpDocxData> = {}): KpDocxData {
   return {
@@ -97,6 +98,13 @@ describe('autofill engine', () => {
       director: 'Иванов Иван Иванович',
       directorDative: '',
     })).toContain('Иванову Ивану Ивановичу');
+    const mixedDirectorLines = formatCounterpartyVendorInfo({
+      ...counterparty,
+      director: 'Генеральный директор Иванов Иван Иванович',
+      directorDative: '',
+    }).split('\n\n');
+
+    expect(mixedDirectorLines[1]).toBe('Генеральный директор Иванов Иван Иванович');
   });
 
   it('предлагает e-mail, контактные лица и подписанта КП из профиля', () => {
@@ -232,6 +240,56 @@ describe('autofill engine', () => {
     expect(result.state.addressee).toBe('Руководителю контрактной службы');
     expect(result.state.contractServiceHead).toBe('Петров Петр Петрович');
     expect(result.changed.some((item) => item.fieldKey === 'contractServiceHead')).toBe(true);
+  });
+
+  it('синхронизирует снимок ФИО составителя служебки при ручном вводе и очищает при смене ФИО', () => {
+    const state: ServiceMemoData = {
+      purpose: '',
+      subjectIntro: '',
+      subjectTable: '',
+      requester: 'Главный специалист\nИванова Анна Сергеевна',
+      addressee: '',
+      contractServiceHead: '',
+      date: '',
+    };
+    const context = {
+      userSettings: {
+        executorName: 'Иванова Анна Сергеевна',
+        executorNameGenitive: 'Ивановой Анны Сергеевны (ручная форма)',
+      },
+    };
+
+    const synced = syncMemoRequesterInflection(state, context.userSettings);
+    expect(synced.requesterNameInflection).toEqual({
+      nominative: 'Иванова Анна Сергеевна',
+      genitive: 'Ивановой Анны Сергеевны (ручная форма)',
+    });
+    expect(getServiceMemoHeaderLines({
+      ...synced,
+      addressee: 'Директору',
+      contractServiceHead: 'Петров Петр Петрович',
+    })).toEqual([
+      'Директору',
+      'Петров Петр Петрович',
+      'Главного специалиста',
+      'Ивановой Анны Сергеевны (ручная форма)',
+    ]);
+
+    const changed = syncMemoRequesterInflection({
+      ...synced,
+      requester: 'Главный специалист\nПетров Петр Петрович',
+    }, context.userSettings);
+    expect(changed.requesterNameInflection).toBeUndefined();
+    expect(getServiceMemoHeaderLines({
+      ...changed,
+      addressee: 'Директору',
+      contractServiceHead: 'Петров Петр Петрович',
+    })).toEqual([
+      'Директору',
+      'Петров Петр Петрович',
+      'Главного специалиста',
+      'Петрова Петра Петровича',
+    ]);
   });
 
   it('применяет сохраненный родительный падеж к ФИО и склоняет должность через transforms источника', () => {

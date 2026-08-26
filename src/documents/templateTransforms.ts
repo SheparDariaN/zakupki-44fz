@@ -4,6 +4,7 @@ import {
   declinePhrase,
   formatDateRu,
   formatSignatureName,
+  isLikelyFullName,
   resolveInflection,
   type RussianCase,
 } from '../utils/morphology';
@@ -76,10 +77,12 @@ function isCounterparty(value: unknown): value is Counterparty {
 }
 
 export function formatCounterpartyVendorInfo(counterparty: Counterparty): string {
-  const directorDative = resolveInflection({
-    nominative: counterparty.director,
-    dative: counterparty.directorDative,
-  }, 'dative');
+  const storedDirectorDative = counterparty.directorDative.trim();
+  const director = counterparty.director.trim();
+  const directorDative = storedDirectorDative
+    || (isLikelyFullName(director)
+      ? resolveInflection({ nominative: director }, 'dative')
+      : director);
   const addressLines = [
     counterparty.legalAddress,
     counterparty.postalAddress && counterparty.postalAddress !== counterparty.legalAddress

@@ -4,6 +4,7 @@ import AppNav from './AppNav';
 import InflectedNameField from './InflectedNameField';
 import { apiFetch, readApiError } from '../utils/api';
 import type { Counterparty } from '../types';
+import { hydrateInflection } from '../utils/morphology';
 
 type CounterpartyForm = {
   companyName: string;
@@ -66,6 +67,21 @@ function tagsToInput(tags: string[]): string {
 
 function formatDate(value: number): string {
   return dateFormatter.format(new Date(value));
+}
+
+function hydrateDirectorInflection(form: CounterpartyForm): CounterpartyForm {
+  const director = hydrateInflection({
+    nominative: form.director,
+    genitive: form.directorGenitive,
+    dative: form.directorDative,
+  });
+
+  return {
+    ...form,
+    director: director.nominative,
+    directorGenitive: director.genitive,
+    directorDative: director.dative,
+  };
 }
 
 export default function Counterparties() {
@@ -143,7 +159,7 @@ export default function Counterparties() {
 
   const startEdit = (counterparty: Counterparty) => {
     setEditingId(counterparty.id);
-    setForm({
+    setForm(hydrateDirectorInflection({
       companyName: counterparty.companyName,
       shortName: counterparty.shortName,
       fullName: counterparty.fullName,
@@ -155,7 +171,7 @@ export default function Counterparties() {
       legalAddress: counterparty.legalAddress,
       postalAddress: counterparty.postalAddress,
       tagsInput: tagsToInput(counterparty.tags),
-    });
+    }));
     setMessage('');
   };
 
@@ -163,18 +179,19 @@ export default function Counterparties() {
     event.preventDefault();
     setMessage('');
 
+    const hydratedForm = hydrateDirectorInflection(form);
     const payload = {
-      companyName: form.companyName,
-      shortName: form.shortName,
-      fullName: form.fullName,
-      director: form.director,
-      directorGenitive: form.directorGenitive,
-      directorDative: form.directorDative,
-      email: form.email,
-      phone: form.phone,
-      legalAddress: form.legalAddress,
-      postalAddress: form.postalAddress,
-      tags: parseTags(form.tagsInput),
+      companyName: hydratedForm.companyName,
+      shortName: hydratedForm.shortName,
+      fullName: hydratedForm.fullName,
+      director: hydratedForm.director,
+      directorGenitive: hydratedForm.directorGenitive,
+      directorDative: hydratedForm.directorDative,
+      email: hydratedForm.email,
+      phone: hydratedForm.phone,
+      legalAddress: hydratedForm.legalAddress,
+      postalAddress: hydratedForm.postalAddress,
+      tags: parseTags(hydratedForm.tagsInput),
     };
 
     setSaving(true);

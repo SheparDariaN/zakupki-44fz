@@ -5,7 +5,7 @@ import AppNav from './AppNav';
 import ServiceMemoPreview from './ServiceMemoPreview';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
-import { applyMemoAutofill, resolveAutofill, type AutofillUserSettings } from '../documents/autofill';
+import { applyMemoAutofill, resolveAutofill, syncMemoRequesterInflection, type AutofillUserSettings } from '../documents/autofill';
 import type { AutofillSourceKind } from '../documents/templateTypes';
 import AutofillPanel from './AutofillPanel';
 import { describeCurrentPurchase, loadCurrentPurchase } from '../utils/currentPurchase';
@@ -86,7 +86,10 @@ export default function ServiceMemo() {
   };
 
   const handleChange = (field: keyof ServiceMemoData, value: string) => {
-    setData(prev => ({ ...prev, [field]: value }));
+    setData(prev => {
+      const next = { ...prev, [field]: value };
+      return field === 'requester' ? syncMemoRequesterInflection(next, userSettings) : next;
+    });
   };
 
   const resetState = () => {
@@ -99,7 +102,7 @@ export default function ServiceMemo() {
     setIsGenerating(true);
     setDownloadMessage('');
     setDownloadMessageError(false);
-    const documentData = normalizeMemoState(data);
+    const documentData = normalizeMemoState(syncMemoRequesterInflection(data, userSettings));
 
     try {
       await DOCUMENT_REGISTRY.memo.generate(documentData);
@@ -135,7 +138,10 @@ export default function ServiceMemo() {
   const labelClass = "text-[9px] uppercase opacity-60 mb-1 font-bold";
   const fieldClass = "bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors";
   const textareaClass = "w-full bg-transparent border border-[#141414] px-2 py-1.5 text-xs focus:outline-none focus:bg-white resize-none";
-  const normalizedData = useMemo(() => normalizeMemoState(data), [data]);
+  const normalizedData = useMemo(
+    () => normalizeMemoState(syncMemoRequesterInflection(data, userSettings)),
+    [data, userSettings]
+  );
   const canGenerate = Boolean(
     normalizedData.purpose &&
     normalizedData.subjectIntro &&

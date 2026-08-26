@@ -1,5 +1,5 @@
 import type { InflectedPhrase } from '../types';
-import { suggestInflection, syncInflection } from '../utils/morphology';
+import { hydrateInflection, suggestInflection, syncInflection } from '../utils/morphology';
 
 type InflectedNameFieldProps = {
   label: string;
@@ -33,8 +33,9 @@ export default function InflectedNameField({
     dative,
   };
   const hasValue = value.trim().length > 0;
+  const hydrated = hydrateInflection(stored);
   const auto = suggestInflection(value);
-  const isAuto = genitive.trim() === auto.genitive && dative.trim() === auto.dative;
+  const isAuto = hydrated.genitive === auto.genitive && hydrated.dative === auto.dative;
 
   return (
     <div className={`flex flex-col ${className}`.trim()}>
@@ -43,7 +44,7 @@ export default function InflectedNameField({
         type="text"
         className={inputClassName}
         value={value}
-        onChange={(event) => onChange(syncInflection(stored, event.target.value))}
+        onChange={(event) => onChange(syncInflection(hydrated, event.target.value))}
         placeholder={placeholder}
       />
 
@@ -73,8 +74,8 @@ export default function InflectedNameField({
               <input
                 type="text"
                 className="border border-[#141414] bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-black"
-                value={genitive}
-                onChange={(event) => onChange({ ...stored, genitive: event.target.value })}
+                value={hydrated.genitive}
+                onChange={(event) => onChange({ ...hydrated, genitive: event.target.value })}
               />
             </label>
             <label className="grid grid-cols-[38px_1fr] gap-2 items-center">
@@ -82,8 +83,8 @@ export default function InflectedNameField({
               <input
                 type="text"
                 className="border border-[#141414] bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-black"
-                value={dative}
-                onChange={(event) => onChange({ ...stored, dative: event.target.value })}
+                value={hydrated.dative}
+                onChange={(event) => onChange({ ...hydrated, dative: event.target.value })}
               />
             </label>
           </div>

@@ -219,7 +219,7 @@ export function declinePosition(value: string, grammaticalCase: RussianCase): st
   return [...words.slice(0, -1), declineSimpleNoun(words[words.length - 1], grammaticalCase)].join(' ');
 }
 
-function isLikelyFullName(value: string): boolean {
+export function isLikelyFullName(value: string): boolean {
   const parts = splitFullName(value);
   const nameParts = [parts.lastName, parts.firstName, parts.patronymic];
 
@@ -285,4 +285,8 @@ export function syncInflection(
     genitive: compact(stored?.genitive) || suggested.genitive,
     dative: compact(stored?.dative) || suggested.dative,
   };
+}
+
+export function hydrateInflection(stored: Partial<InflectedPhrase> | null | undefined): InflectedPhrase {
+  return syncInflection(stored, stored?.nominative ?? '');
 }

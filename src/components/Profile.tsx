@@ -6,6 +6,7 @@ import InflectedNameField from './InflectedNameField';
 import { apiFetch, clearSession, getStoredUser, readApiError } from '../utils/api';
 import type { StoredDocument, UserSettings } from '../server/types';
 import { generateRegisteredDocument, getDocumentTitle } from '../documents/registry';
+import { hydrateInflection } from '../utils/morphology';
 
 const emptySettings: UserSettings = {
   customer: '',
@@ -24,6 +25,37 @@ const emptySettings: UserSettings = {
   contractServiceHeadNameDative: '',
   defaultServiceConditions: [],
 };
+
+function hydrateSettingsInflections(settings: UserSettings): UserSettings {
+  const executor = hydrateInflection({
+    nominative: settings.executorName,
+    genitive: settings.executorNameGenitive,
+    dative: settings.executorNameDative,
+  });
+  const contractServiceHead = hydrateInflection({
+    nominative: settings.contractServiceHeadName,
+    genitive: settings.contractServiceHeadNameGenitive,
+    dative: settings.contractServiceHeadNameDative,
+  });
+  const contactPerson = hydrateInflection({
+    nominative: settings.contactPerson,
+    genitive: settings.contactPersonGenitive,
+    dative: settings.contactPersonDative,
+  });
+
+  return {
+    ...settings,
+    executorName: executor.nominative,
+    executorNameGenitive: executor.genitive,
+    executorNameDative: executor.dative,
+    contractServiceHeadName: contractServiceHead.nominative,
+    contractServiceHeadNameGenitive: contractServiceHead.genitive,
+    contractServiceHeadNameDative: contractServiceHead.dative,
+    contactPerson: contactPerson.nominative,
+    contactPersonGenitive: contactPerson.genitive,
+    contactPersonDative: contactPerson.dative,
+  };
+}
 
 export default function Profile() {
   const [settings, setSettings] = useState<UserSettings>(emptySettings);
@@ -56,13 +88,13 @@ export default function Profile() {
       const res = await apiFetch('/api/user/settings');
       if (res.ok) {
         const data: UserSettings = await res.json();
-        setSettings({
+        setSettings(hydrateSettingsInflections({
           ...emptySettings,
           ...data,
           defaultServiceConditions: Array.isArray(data.defaultServiceConditions)
             ? data.defaultServiceConditions
             : [],
-        });
+        }));
       }
     } catch (err) {
       console.error(err);
@@ -84,10 +116,10 @@ export default function Profile() {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage('');
-    const payload: UserSettings = {
+    const payload: UserSettings = hydrateSettingsInflections({
       ...settings,
       defaultServiceConditions: settings.defaultServiceConditions.map((item) => item.trim()).filter(Boolean),
-    };
+    });
     try {
       const res = await apiFetch('/api/user/settings', {
         method: 'POST',
