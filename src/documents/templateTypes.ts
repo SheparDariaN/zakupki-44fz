@@ -27,6 +27,7 @@ export type TemplateTransform =
   | 'formatSignatureName'
   | 'toGenitiveCase'
   | 'toDativeCase'
+  | 'formatListItems'
   | 'formatMoney'
   | 'formatAmountInWords';
 

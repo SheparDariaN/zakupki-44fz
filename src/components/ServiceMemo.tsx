@@ -16,7 +16,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 const defaultValues: ServiceMemoData = {
   purpose: 'В целях оптимизации процесса, ведения документооборота в части информационной безопасности, прошу рассмотреть возможность',
   subjectIntro: 'приобретения лицензии программного продукта «АльфаДок» в следующей комплектации:',
-  subjectTable: 'Права на программу для ЭВМ «Альфа». Приложение «АльфаДок». Клиентская лицензия «Сегмент» на 1 год;\nПрава на программу для ЭВМ «Альфа». Приложение «АльфаДок». Клиентская лицензия «Модуль ГИС» на 1 год.',
+  subjectTable: 'права на программу для ЭВМ «Альфа». Приложение «АльфаДок». Клиентская лицензия «Сегмент» на 1 год;\nправа на программу для ЭВМ «Альфа». Приложение «АльфаДок». Клиентская лицензия «Модуль ГИС» на 1 год.',
   requester: '',
   contractServiceHead: '',
   date: todayIso(),
@@ -204,7 +204,7 @@ export default function ServiceMemo() {
                   onChange={e => handleChange('contractServiceHead', e.target.value)}
                   placeholder="Должность, ФИО"
                 />
-                <p className="text-[10px] opacity-40 mt-1">Подставляется первым в шапке после обращения.</p>
+                <p className="text-[10px] opacity-40 mt-1">Указывается вручную, из профиля не подставляется.</p>
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Составитель запроса</label>
@@ -215,7 +215,7 @@ export default function ServiceMemo() {
                   onChange={e => handleChange('requester', e.target.value)}
                   placeholder="Должность, ФИО"
                 />
-                <p className="text-[10px] opacity-40 mt-1">Дублируется в шапке и в конце документа над датой.</p>
+                <p className="text-[10px] opacity-40 mt-1">В шапке — родительный падеж, в подписи — именительный.</p>
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Дата</label>
@@ -266,7 +266,7 @@ export default function ServiceMemo() {
                   value={data.subjectTable}
                   onChange={e => handleChange('subjectTable', e.target.value)}
                 />
-                <p className="text-[10px] opacity-40 mt-1">Каждая строка станет отдельным пунктом списка.</p>
+                <p className="text-[10px] opacity-40 mt-1">Каждая строка — пункт списка со строчной буквы: «;» между пунктами и «.» в конце.</p>
               </div>
             </div>
           </section>

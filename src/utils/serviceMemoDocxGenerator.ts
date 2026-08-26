@@ -12,18 +12,40 @@ import {
 } from "docx";
 import { ServiceMemoData } from "../types";
 import { normalizeMemoState } from "../documents/templateNormalization";
+import { applyTemplateTransforms, formatListItems } from "../documents/templateTransforms";
 import { generateDocumentBatch } from "./documentBatch";
 import { formatDateRu } from "./morphology";
+
+/** 14 см от левого края листа минус левое поле 3 см. */
+const HEADER_INDENT_TWIPS = 14 * 567 - 1701;
 
 export function formatServiceMemoDate(value: string) {
   return formatDateRu(value);
 }
 
-export function getServiceMemoSubjectItems(value: string) {
+function splitMemoLines(value: string) {
   return value
     .split("\n")
-    .map((line) => line.replace(/^[\s•*-]+/, "").trim())
+    .map((line) => line.trim())
     .filter(Boolean);
+}
+
+export function formatServiceMemoHeaderRequester(requester: string) {
+  const declined = applyTemplateTransforms(requester, ["toGenitiveCase"]);
+  return typeof declined === "string" ? declined : requester;
+}
+
+export function getServiceMemoHeaderLines(data: ServiceMemoData) {
+  return [
+    "Руководителю контрактной службы",
+    ...splitMemoLines(data.contractServiceHead),
+    ...splitMemoLines(formatServiceMemoHeaderRequester(data.requester)),
+  ];
+}
+
+export function getServiceMemoSubjectItems(value: string) {
+  const formatted = formatListItems(value);
+  return formatted ? formatted.split("\n") : [];
 }
 
 export function getServiceMemoBodyText(data: ServiceMemoData) {
@@ -70,11 +92,7 @@ const buildServiceMemoDocument = (data: ServiceMemoData) => {
       children,
     });
 
-  const headerLines = [
-    "Руководителю контрактной службы",
-    data.contractServiceHead,
-    data.requester,
-  ].filter(Boolean);
+  const headerLines = getServiceMemoHeaderLines(data);
 
   return new Document({
     sections: [
@@ -90,27 +108,15 @@ const buildServiceMemoDocument = (data: ServiceMemoData) => {
           },
         },
         children: [
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            borders: noBorders,
-            rows: [
-              new TableRow({
-                children: [
-                  tableCell([new Paragraph({ text: "" })]),
-                  tableCell(
-                    headerLines.map(
-                      (line, index) =>
-                        new Paragraph({
-                          children: [t(line, index === 0, 24)],
-                          alignment: AlignmentType.LEFT,
-                          spacing: { after: 80 },
-                        })
-                    )
-                  ),
-                ],
-              }),
-            ],
-          }),
+          ...headerLines.map(
+            (line, index) =>
+              new Paragraph({
+                indent: { left: HEADER_INDENT_TWIPS },
+                children: [t(line, index === 0, 24)],
+                alignment: AlignmentType.LEFT,
+                spacing: { after: 80 },
+              })
+          ),
 
           emptyParagraph(420),
 

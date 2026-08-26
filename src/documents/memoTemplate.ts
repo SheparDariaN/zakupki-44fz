@@ -11,13 +11,8 @@ export const MEMO_TEMPLATE = {
       statePath: 'contractServiceHead',
       valueType: 'multilineText',
       required: true,
+      description: 'Руководитель контрактной службы указывается вручную и не подставляется из профиля пользователя.',
       sources: [
-        {
-          kind: 'userSettings',
-          label: 'Профиль пользователя',
-          path: 'executorPosition,executorName',
-          transforms: ['toDativeCase', 'joinLines', 'trim'],
-        },
         { kind: 'documentState', label: 'Поле документа', path: 'contractServiceHead', transforms: ['trim'] },
       ],
       transforms: ['formatSignatureName'],
@@ -89,7 +84,7 @@ export const MEMO_TEMPLATE = {
           kind: 'currentPurchase',
           label: 'Позиции закупки НМЦК',
           path: 'positions[].name',
-          transforms: ['joinLines'],
+          transforms: ['joinLines', 'formatListItems'],
         },
         { kind: 'documentState', label: 'Поле документа', path: 'subjectTable', transforms: ['trim'] },
       ],

@@ -244,7 +244,7 @@ export default function Counterparties() {
   const canSave = Boolean(form.companyName.trim()) && !saving;
 
   return (
-    <div className="min-h-screen bg-[#E4E3E0] p-8 font-sans text-[#141414] overflow-auto">
+    <div className="h-screen overflow-y-auto scroll-area bg-[#E4E3E0] p-8 font-sans text-[#141414]">
       <div className="max-w-6xl mx-auto">
         <header className="flex justify-between items-center mb-8 border-b border-[#141414] pb-4 gap-4">
           <div className="min-w-0">

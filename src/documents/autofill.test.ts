@@ -112,7 +112,7 @@ describe('autofill engine', () => {
     expect(suggestions.find((item) => item.fieldKey === 'subjectTable')?.value).toBe('Сертификат поддержки (ЕИ: шт, кол-во: 2)');
   });
 
-  it('подставляет подписантов служебной записки из профиля', () => {
+  it('подставляет составителя служебной записки из профиля и не подставляет руководителя контрактной службы', () => {
     const state: ServiceMemoData = {
       purpose: '',
       subjectIntro: '',
@@ -130,7 +130,8 @@ describe('autofill engine', () => {
     });
 
     expect(result.state.requester).toBe('Главный специалист\nИванова Анна Сергеевна');
-    expect(result.state.contractServiceHead).toBe('Главному специалисту\nИвановой Анне Сергеевне');
+    expect(result.state.contractServiceHead).toBe('');
+    expect(result.changed.some((item) => item.fieldKey === 'contractServiceHead')).toBe(false);
   });
 
   it('применяет родительный падеж к ФИО и должности через transforms источника', () => {
@@ -142,10 +143,10 @@ describe('autofill engine', () => {
       contractServiceHead: '',
       date: '',
     };
-    const contractServiceHead = DOCUMENT_TEMPLATE_SCHEMAS.memo.fields.find(
-      (field) => field.fieldKey === 'contractServiceHead'
+    const requester = DOCUMENT_TEMPLATE_SCHEMAS.memo.fields.find(
+      (field) => field.fieldKey === 'requester'
     );
-    const source = contractServiceHead?.sources[0] as { transforms?: readonly TemplateTransform[] };
+    const source = requester?.sources[0] as { transforms?: readonly TemplateTransform[] };
     const originalTransforms = source.transforms;
 
     source.transforms = ['toGenitiveCase', 'joinLines', 'trim'];
@@ -158,12 +159,46 @@ describe('autofill engine', () => {
         },
       });
 
-      expect(suggestions.find((item) => item.fieldKey === 'contractServiceHead')?.value).toBe(
+      expect(suggestions.find((item) => item.fieldKey === 'requester')?.value).toBe(
         'Главного специалиста\nИвановой Анны Сергеевны'
       );
     } finally {
       source.transforms = originalTransforms;
     }
+  });
+
+  it('подставляет перечень объектов закупки служебной записки со строчной буквы и списочной пунктуацией', () => {
+    const state: ServiceMemoData = {
+      purpose: '',
+      subjectIntro: '',
+      subjectTable: '',
+      requester: '',
+      contractServiceHead: '',
+      date: '',
+    };
+
+    const result = applyAutofill('memo', state, {
+      currentPurchase: {
+        requisites: {
+          customer: '',
+          subject: 'Оказание услуг техподдержки',
+          date: '',
+          executorName: '',
+          executorPosition: '',
+        },
+        positions: [
+          { id: '1', name: 'Сертификат поддержки', unit: 'шт', quantity: 2 },
+          { id: '2', name: 'Лицензия', unit: 'шт', quantity: 1 },
+        ],
+        suppliers: [],
+        prices: [],
+      },
+    });
+
+    expect(result.state.subjectIntro).toBe('Оказание услуг техподдержки');
+    expect(result.state.subjectTable).toBe(
+      'сертификат поддержки (ЕИ: шт, кол-во: 2);\nлицензия (ЕИ: шт, кол-во: 1).'
+    );
   });
 
   it('разделяет предложения для заполненных полей и перезапись по явному флагу', () => {

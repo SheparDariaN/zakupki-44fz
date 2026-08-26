@@ -114,6 +114,29 @@ function joinLines(value: unknown): string {
     .join('\n');
 }
 
+function toListLines(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap(toListLines);
+  }
+  if (typeof value !== 'string') return [];
+
+  return value
+    .split('\n')
+    .map((line) => line.replace(/^[\s•*-]+/, '').trim())
+    .filter(Boolean);
+}
+
+export function formatListItems(value: unknown): string {
+  const lines = toListLines(value)
+    .map((line) => line.replace(/[;.]+$/u, '').trim())
+    .map((line) => line.replace(/^[А-ЯЁA-Z]/u, (letter) => letter.toLowerCase()))
+    .filter(Boolean);
+
+  return lines
+    .map((line, index) => `${line}${index === lines.length - 1 ? '.' : ';'}`)
+    .join('\n');
+}
+
 function isLikelyFullName(value: string): boolean {
   const parts = splitFullName(value);
   const nameParts = [parts.lastName, parts.firstName, parts.patronymic];
@@ -166,6 +189,8 @@ function applyTransform(value: unknown, transform: TemplateTransform): unknown {
       return applyCaseTransform(value, 'genitive');
     case 'toDativeCase':
       return applyCaseTransform(value, 'dative');
+    case 'formatListItems':
+      return formatListItems(value);
     case 'formatMoney':
     case 'formatAmountInWords':
       return value;
