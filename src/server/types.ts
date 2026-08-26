@@ -1,6 +1,8 @@
+import type { DocumentKind } from '../types';
+
 export type UserRole = 'admin' | 'user';
 
-export type DocumentType = 'nmck' | 'kp';
+export type DocumentType = DocumentKind;
 
 export interface AuthUser {
   id: number;
@@ -13,6 +15,11 @@ export interface UserSettings {
   customer: string;
   executorPosition: string;
   executorName: string;
+  submissionEmail: string;
+  contactPerson: string;
+  contactPhone: string;
+  defaultServicePlace: string;
+  defaultServiceConditions: string;
 }
 
 export interface StoredUser {
@@ -42,9 +49,15 @@ export interface StoredDocument {
 export interface Counterparty {
   id: number;
   companyName: string;
+  shortName: string;
+  fullName: string;
   director: string;
+  directorGenitive: string;
+  directorDative: string;
   email: string;
+  phone: string;
   legalAddress: string;
+  postalAddress: string;
   tags: string[];
   createdAt: number;
   updatedAt: number;

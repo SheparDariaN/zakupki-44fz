@@ -1,5 +1,6 @@
 import React from 'react';
 import { KpDocxData } from '../types';
+import { normalizeKpState } from '../documents/templateNormalization';
 
 interface PreviewProps {
   data: KpDocxData;
@@ -7,6 +8,8 @@ interface PreviewProps {
 }
 
 export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
+  const normalizedData = React.useMemo(() => normalizeKpState(data), [data]);
+
   return (
     <div className="animate-in fade-in duration-300 w-[210mm] min-w-[210mm] min-h-[297mm] mx-auto bg-white shadow-[0_10px_30px_rgba(0,0,0,0.1)] pt-[20mm] pr-[15mm] pb-[20mm] pl-[30mm] text-[10pt] font-serif leading-tight">
       <div className="text-center font-bold text-[14pt] mb-1 leading-tight">
@@ -22,7 +25,7 @@ export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
           __________ № __________
         </div>
         <div className="whitespace-pre-wrap text-[11pt]">
-          {data.vendorInfos[vendorIndex] || ""}
+          {normalizedData.vendorInfos[vendorIndex] || ""}
         </div>
       </div>
 
@@ -32,7 +35,7 @@ export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
       </div>
 
       <div className="indent-8 text-justify mb-4 text-[12pt]">
-        Государственное казенное учреждение «Центр информационных технологий Кузбасса» планирует осуществить закупку на {data.subjectIntro}:
+        Государственное казенное учреждение «Центр информационных технологий Кузбасса» планирует осуществить закупку на {normalizedData.subjectIntro}:
       </div>
 
       <table className="w-full border-collapse border border-black mb-6 text-[11pt] leading-[1.15]">
@@ -42,7 +45,7 @@ export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
           </tr>
           <tr>
             <td className="border border-black px-1 py-0 align-top w-[25%] text-left">Наименование объекта закупки, включая указание единицы измерения, количества товара, объема работ или услуг.</td>
-            <td className="border border-black px-1 py-0 align-top w-[75%] whitespace-pre-wrap text-justify">{data.subjectTable}</td>
+            <td className="border border-black px-1 py-0 align-top w-[75%] whitespace-pre-wrap text-justify">{normalizedData.subjectTable}</td>
           </tr>
           <tr>
             <td colSpan={2} className="border border-black text-center font-bold p-0 leading-tight">2.</td>
@@ -54,7 +57,7 @@ export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
             <td className="border border-black px-1 py-0 align-top text-left w-[25%]">- требования к порядку поставки товара, выполнению работ, оказанию услуг;</td>
             <td className="border border-black px-1 py-0 align-top whitespace-pre-wrap w-[75%] text-justify">
               1. Место оказания услуг: 650064, г. Кемерово, ул. Арочная, 37А, Государственное казенное учреждение «Центр информационных технологий Кузбасса».<br/>
-              {data.serviceConditions.map((cond, idx) => (
+              {normalizedData.serviceConditions.map((cond, idx) => (
                 <React.Fragment key={idx}>
                   {idx + 2}. {cond}<br/>
                 </React.Fragment>
@@ -63,7 +66,7 @@ export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
           </tr>
           <tr>
             <td className="border border-black px-1 py-0 align-top text-left w-[25%]">- предполагаемые сроки проведения закупки;</td>
-            <td className="border border-black px-1 py-0 align-top w-[75%] text-justify">{data.purchasePeriod}</td>
+            <td className="border border-black px-1 py-0 align-top w-[75%] text-justify">{normalizedData.purchasePeriod}</td>
           </tr>
           <tr>
             <td className="border border-black px-1 py-0 align-top text-left w-[25%]">- порядок формирования цены;</td>
@@ -94,7 +97,7 @@ export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
           </tr>
           <tr>
             <td className="border border-black px-1 py-0 align-top text-left w-[25%]">Срок предоставления ценовой информации</td>
-            <td className="border border-black px-1 py-0 align-top w-[75%] text-justify">{data.submissionDeadline}</td>
+            <td className="border border-black px-1 py-0 align-top w-[75%] text-justify">{normalizedData.submissionDeadline}</td>
           </tr>
           <tr>
             <td colSpan={2} className="border border-black text-center font-bold p-0 leading-tight">4.</td>
@@ -108,14 +111,14 @@ export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
           </tr>
           <tr>
             <td className="border border-black px-1 py-0 align-top text-left w-[25%]">Адрес электронной почты для предоставления сканированных копий писем</td>
-            <td className="border border-black px-1 py-0 align-top w-[75%] text-justify">{data.submissionEmail}</td>
+            <td className="border border-black px-1 py-0 align-top w-[75%] text-justify">{normalizedData.submissionEmail}</td>
           </tr>
           <tr>
             <td colSpan={2} className="border border-black text-center font-bold p-0 leading-tight">6.</td>
           </tr>
           <tr>
             <td className="border border-black px-1 py-0 align-top text-left w-[25%]">Контактные лица</td>
-            <td className="border border-black px-1 py-0 align-top w-[75%] text-justify">{data.contactPerson}</td>
+            <td className="border border-black px-1 py-0 align-top w-[75%] text-justify">{normalizedData.contactPerson}</td>
           </tr>
         </tbody>
       </table>

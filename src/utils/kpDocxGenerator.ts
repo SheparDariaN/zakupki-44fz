@@ -1,6 +1,5 @@
 import {
   Document,
-  Packer,
   Paragraph,
   TextRun,
   Table,
@@ -11,9 +10,10 @@ import {
   AlignmentType,
   VerticalAlign,
 } from "docx";
-import { saveAs } from "file-saver";
-import JSZip from "jszip";
 import { KpDocxData } from "../types";
+import { KP_VENDOR_BATCH_SCENARIO } from "../documents/batchScenarios";
+import { normalizeKpState } from "../documents/templateNormalization";
+import { generateDocumentBatchFromScenario, sanitizeFileName } from "./documentBatch";
 
 const buildDocument = (data: KpDocxData, vendorInfo: string) => {
   const TIMES = "Times New Roman";
@@ -359,27 +359,19 @@ const buildDocument = (data: KpDocxData, vendorInfo: string) => {
 };
 
 export const generateKpDocx = async (data: KpDocxData) => {
-  const vendors = data.vendorInfos.filter(v => v.trim());
+  const normalizedData = normalizeKpState(data);
 
-  if (vendors.length <= 1) {
-    const doc = buildDocument(data, vendors[0] || "");
-    const blob = await Packer.toBlob(doc);
-    saveAs(blob, "Запрос_КП.docx");
-    return;
-  }
-
-  const zip = new JSZip();
-  for (let i = 0; i < vendors.length; i++) {
-    const vendor = vendors[i];
-    const doc = buildDocument(data, vendor);
-    const blob = await Packer.toBlob(doc);
-
-    const cleanName = vendor.split('\n')[0].substring(0, 30).replace(/[<>:"/\\|?*]/g, '').trim() || "vendor";
-    const filename = `${i + 1}_Запрос_КП_${cleanName}.docx`;
-
-    zip.file(filename, blob);
-  }
-
-  const zipBlob = await zip.generateAsync({ type: "blob" });
-  saveAs(zipBlob, "Запросы_КП.zip");
+  await generateDocumentBatchFromScenario(
+    normalizedData,
+    {
+      ...KP_VENDOR_BATCH_SCENARIO,
+      getVariants: (state) => state.vendorInfos.filter((vendor) => vendor.trim()),
+      getFallbackVariant: () => "",
+      getVariantFileName: (vendor, index) => {
+        const vendorName = sanitizeFileName(vendor.split('\n')[0].substring(0, 30), "vendor");
+        return `${index + 1}_Запрос_КП_${vendorName}.docx`;
+      },
+    },
+    (state, vendor) => buildDocument(state, vendor)
+  );
 };

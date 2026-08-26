@@ -1,0 +1,142 @@
+import type { DocumentTemplateSchema } from './templateTypes';
+
+export const KP_TEMPLATE = {
+  kind: 'kp',
+  title: 'Запрос КП',
+  fields: [
+    {
+      documentKind: 'kp',
+      fieldKey: 'vendorInfos',
+      label: 'Адресаты запроса',
+      statePath: 'vendorInfos',
+      valueType: 'list',
+      required: true,
+      sources: [
+        {
+          kind: 'counterparty',
+          label: 'Справочник контрагентов',
+          path: 'counterparties',
+          transforms: ['formatCounterpartyVendorInfo'],
+        },
+        { kind: 'documentState', label: 'Адресаты документа', path: 'vendorInfos' },
+      ],
+      repeatable: { statePath: 'vendorInfos', itemLabel: 'Адресат', minItems: 1 },
+      batchKey: 'vendorInfos',
+    },
+    {
+      documentKind: 'kp',
+      fieldKey: 'vendorInfo',
+      label: 'Адресат запроса',
+      statePath: 'vendorInfos[]',
+      valueType: 'multilineText',
+      required: true,
+      sources: [
+        {
+          kind: 'counterparty',
+          label: 'Контрагент',
+          path: 'companyName,fullName,director,directorDative,legalAddress,postalAddress,email,phone',
+          transforms: ['formatCounterpartyVendorInfo'],
+        },
+        { kind: 'documentState', label: 'Поле адресата', path: 'vendorInfos[]', transforms: ['trim'] },
+      ],
+      repeatable: { statePath: 'vendorInfos', itemLabel: 'Адресат', minItems: 1 },
+      batchKey: 'vendorInfos',
+    },
+    {
+      documentKind: 'kp',
+      fieldKey: 'subjectIntro',
+      label: 'Предмет закупки во вводном абзаце',
+      statePath: 'subjectIntro',
+      valueType: 'text',
+      required: true,
+      sources: [
+        { kind: 'currentPurchase', label: 'Объект закупки НМЦК', path: 'requisites.subject', transforms: ['trim'] },
+        { kind: 'documentState', label: 'Поле документа', path: 'subjectIntro', transforms: ['trim'] },
+      ],
+    },
+    {
+      documentKind: 'kp',
+      fieldKey: 'subjectTable',
+      label: 'Предмет закупки в таблице',
+      statePath: 'subjectTable',
+      valueType: 'multilineText',
+      required: true,
+      sources: [
+        {
+          kind: 'currentPurchase',
+          label: 'Позиции закупки НМЦК',
+          path: 'positions[].name,positions[].unit,positions[].quantity',
+          transforms: ['joinLines'],
+        },
+        { kind: 'documentState', label: 'Поле документа', path: 'subjectTable', transforms: ['trim'] },
+      ],
+    },
+    {
+      documentKind: 'kp',
+      fieldKey: 'serviceConditions',
+      label: 'Условия оказания услуг',
+      statePath: 'serviceConditions',
+      valueType: 'list',
+      required: true,
+      sources: [
+        { kind: 'currentPurchase', label: 'Условия текущей закупки', path: 'serviceConditions' },
+        { kind: 'documentState', label: 'Пункты документа', path: 'serviceConditions' },
+      ],
+      repeatable: { statePath: 'serviceConditions', itemLabel: 'Условие', minItems: 1 },
+    },
+    {
+      documentKind: 'kp',
+      fieldKey: 'purchasePeriod',
+      label: 'Предполагаемые сроки проведения закупки',
+      statePath: 'purchasePeriod',
+      valueType: 'text',
+      required: true,
+      sources: [
+        { kind: 'currentPurchase', label: 'Данные закупки', path: 'purchasePeriod', transforms: ['trim'] },
+        { kind: 'documentState', label: 'Поле документа', path: 'purchasePeriod', transforms: ['trim'] },
+      ],
+    },
+    {
+      documentKind: 'kp',
+      fieldKey: 'submissionDeadline',
+      label: 'Срок предоставления ценовой информации',
+      statePath: 'submissionDeadline',
+      valueType: 'date',
+      required: true,
+      sources: [
+        { kind: 'currentDate', label: 'Текущая дата', transforms: ['formatDateRu'] },
+        { kind: 'documentState', label: 'Поле документа', path: 'submissionDeadline', transforms: ['trim'] },
+      ],
+    },
+    {
+      documentKind: 'kp',
+      fieldKey: 'submissionEmail',
+      label: 'E-mail для приема КП',
+      statePath: 'submissionEmail',
+      valueType: 'text',
+      required: true,
+      sources: [
+        {
+          kind: 'userSettings',
+          label: 'Профиль пользователя',
+          path: 'submissionEmail',
+          transforms: ['trim'],
+        },
+        { kind: 'documentState', label: 'Поле документа', path: 'submissionEmail', transforms: ['trim'] },
+      ],
+    },
+    {
+      documentKind: 'kp',
+      fieldKey: 'contactPerson',
+      label: 'Контактное лицо',
+      statePath: 'contactPerson',
+      valueType: 'text',
+      required: true,
+      sources: [
+        { kind: 'userSettings', label: 'Контактное лицо из профиля', path: 'contactPerson', transforms: ['trim'] },
+        { kind: 'userSettings', label: 'ФИО подписанта из профиля', path: 'executorName', transforms: ['trim'] },
+        { kind: 'documentState', label: 'Поле документа', path: 'contactPerson', transforms: ['trim'] },
+      ],
+    },
+  ],
+} satisfies DocumentTemplateSchema<'kp'>;

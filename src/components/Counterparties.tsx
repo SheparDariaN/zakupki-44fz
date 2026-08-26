@@ -6,9 +6,15 @@ import type { Counterparty } from '../types';
 
 type CounterpartyForm = {
   companyName: string;
+  shortName: string;
+  fullName: string;
   director: string;
+  directorGenitive: string;
+  directorDative: string;
   email: string;
+  phone: string;
   legalAddress: string;
+  postalAddress: string;
   tagsInput: string;
 };
 
@@ -19,9 +25,15 @@ type MutationResponse = {
 
 const emptyForm: CounterpartyForm = {
   companyName: '',
+  shortName: '',
+  fullName: '',
   director: '',
+  directorGenitive: '',
+  directorDative: '',
   email: '',
+  phone: '',
   legalAddress: '',
+  postalAddress: '',
   tagsInput: '',
 };
 
@@ -83,9 +95,15 @@ export default function Counterparties() {
     return counterparties.filter((counterparty) => {
       const matchesQuery = !normalizedQuery || [
         counterparty.companyName,
+        counterparty.shortName,
+        counterparty.fullName,
         counterparty.director,
+        counterparty.directorGenitive,
+        counterparty.directorDative,
         counterparty.email,
+        counterparty.phone,
         counterparty.legalAddress,
+        counterparty.postalAddress,
         counterparty.tags.join(' '),
       ].some((value) => value.toLowerCase().includes(normalizedQuery));
 
@@ -126,9 +144,15 @@ export default function Counterparties() {
     setEditingId(counterparty.id);
     setForm({
       companyName: counterparty.companyName,
+      shortName: counterparty.shortName,
+      fullName: counterparty.fullName,
       director: counterparty.director,
+      directorGenitive: counterparty.directorGenitive,
+      directorDative: counterparty.directorDative,
       email: counterparty.email,
+      phone: counterparty.phone,
       legalAddress: counterparty.legalAddress,
+      postalAddress: counterparty.postalAddress,
       tagsInput: tagsToInput(counterparty.tags),
     });
     setMessage('');
@@ -140,9 +164,15 @@ export default function Counterparties() {
 
     const payload = {
       companyName: form.companyName,
+      shortName: form.shortName,
+      fullName: form.fullName,
       director: form.director,
+      directorGenitive: form.directorGenitive,
+      directorDative: form.directorDative,
       email: form.email,
+      phone: form.phone,
       legalAddress: form.legalAddress,
+      postalAddress: form.postalAddress,
       tags: parseTags(form.tagsInput),
     };
 
@@ -265,6 +295,28 @@ export default function Counterparties() {
                     placeholder="ООО «Пример»"
                   />
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex flex-col">
+                    <label className={labelClass}>Краткое наименование</label>
+                    <input
+                      type="text"
+                      className={inputClass}
+                      value={form.shortName}
+                      onChange={(event) => setForm((prev) => ({ ...prev, shortName: event.target.value }))}
+                      placeholder="ООО «Пример»"
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className={labelClass}>Полное наименование</label>
+                    <input
+                      type="text"
+                      className={inputClass}
+                      value={form.fullName}
+                      onChange={(event) => setForm((prev) => ({ ...prev, fullName: event.target.value }))}
+                      placeholder="Общество с ограниченной ответственностью..."
+                    />
+                  </div>
+                </div>
                 <div className="flex flex-col">
                   <label className={labelClass}>Руководитель</label>
                   <input
@@ -275,15 +327,49 @@ export default function Counterparties() {
                     placeholder="Генеральный директор Иванов И.И."
                   />
                 </div>
-                <div className="flex flex-col">
-                  <label className={labelClass}>Email</label>
-                  <input
-                    type="email"
-                    className={inputClass}
-                    value={form.email}
-                    onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                    placeholder="info@example.ru"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex flex-col">
+                    <label className={labelClass}>Руководитель в родительном падеже</label>
+                    <input
+                      type="text"
+                      className={inputClass}
+                      value={form.directorGenitive}
+                      onChange={(event) => setForm((prev) => ({ ...prev, directorGenitive: event.target.value }))}
+                      placeholder="Генерального директора Иванова И.И."
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className={labelClass}>Руководитель в дательном падеже</label>
+                    <input
+                      type="text"
+                      className={inputClass}
+                      value={form.directorDative}
+                      onChange={(event) => setForm((prev) => ({ ...prev, directorDative: event.target.value }))}
+                      placeholder="Генеральному директору Иванову И.И."
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex flex-col">
+                    <label className={labelClass}>Email</label>
+                    <input
+                      type="email"
+                      className={inputClass}
+                      value={form.email}
+                      onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                      placeholder="info@example.ru"
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className={labelClass}>Телефон</label>
+                    <input
+                      type="text"
+                      className={inputClass}
+                      value={form.phone}
+                      onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+                      placeholder="+7 (000) 000-00-00"
+                    />
+                  </div>
                 </div>
                 <div className="flex flex-col">
                   <label className={labelClass}>Юридический адрес</label>
@@ -293,6 +379,16 @@ export default function Counterparties() {
                     value={form.legalAddress}
                     onChange={(event) => setForm((prev) => ({ ...prev, legalAddress: event.target.value }))}
                     placeholder="Адрес одной или несколькими строками"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className={labelClass}>Почтовый адрес</label>
+                  <textarea
+                    rows={3}
+                    className={`${inputClass} resize-none`}
+                    value={form.postalAddress}
+                    onChange={(event) => setForm((prev) => ({ ...prev, postalAddress: event.target.value }))}
+                    placeholder="Если отличается от юридического адреса"
                   />
                 </div>
                 <div className="flex flex-col">
@@ -409,16 +505,40 @@ export default function Counterparties() {
 
                   <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-sm">
                     <div>
+                      <dt className={labelClass}>Краткое наименование</dt>
+                      <dd className="break-words">{counterparty.shortName || <span className="opacity-40">Не указано</span>}</dd>
+                    </div>
+                    <div>
+                      <dt className={labelClass}>Полное наименование</dt>
+                      <dd className="break-words">{counterparty.fullName || <span className="opacity-40">Не указано</span>}</dd>
+                    </div>
+                    <div>
                       <dt className={labelClass}>Руководитель</dt>
                       <dd className="break-words">{counterparty.director || <span className="opacity-40">Не указан</span>}</dd>
+                    </div>
+                    <div>
+                      <dt className={labelClass}>Руководитель, Р. п.</dt>
+                      <dd className="break-words">{counterparty.directorGenitive || <span className="opacity-40">Не указан</span>}</dd>
+                    </div>
+                    <div>
+                      <dt className={labelClass}>Руководитель, Д. п.</dt>
+                      <dd className="break-words">{counterparty.directorDative || <span className="opacity-40">Не указан</span>}</dd>
                     </div>
                     <div>
                       <dt className={labelClass}>Email</dt>
                       <dd className="break-words">{counterparty.email || <span className="opacity-40">Не указан</span>}</dd>
                     </div>
+                    <div>
+                      <dt className={labelClass}>Телефон</dt>
+                      <dd className="break-words">{counterparty.phone || <span className="opacity-40">Не указан</span>}</dd>
+                    </div>
                     <div className="md:col-span-2">
                       <dt className={labelClass}>Юридический адрес</dt>
                       <dd className="whitespace-pre-wrap break-words">{counterparty.legalAddress || <span className="opacity-40">Не указан</span>}</dd>
+                    </div>
+                    <div className="md:col-span-2">
+                      <dt className={labelClass}>Почтовый адрес</dt>
+                      <dd className="whitespace-pre-wrap break-words">{counterparty.postalAddress || <span className="opacity-40">Не указан</span>}</dd>
                     </div>
                   </dl>
 

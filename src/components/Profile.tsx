@@ -1,15 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { generateDocx } from '../utils/docxGenerator';
-import { generateKpDocx } from '../utils/kpDocxGenerator';
 import { Download } from 'lucide-react';
 import AppNav from './AppNav';
 import { apiFetch, clearSession, getStoredUser, readApiError } from '../utils/api';
-import type { AppState, KpDocxData } from '../types';
-import type { StoredDocument } from '../server/types';
+import type { StoredDocument, UserSettings } from '../server/types';
+import { generateRegisteredDocument, getDocumentTitle } from '../documents/registry';
+
+const emptySettings: UserSettings = {
+  customer: '',
+  executorPosition: '',
+  executorName: '',
+  submissionEmail: '',
+  contactPerson: '',
+  contactPhone: '',
+  defaultServicePlace: '',
+  defaultServiceConditions: '',
+};
 
 export default function Profile() {
-  const [settings, setSettings] = useState({ customer: '', executorPosition: '', executorName: '' });
+  const [settings, setSettings] = useState<UserSettings>(emptySettings);
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
   const [newPassword, setNewPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -38,8 +47,8 @@ export default function Profile() {
     try {
       const res = await apiFetch('/api/user/settings');
       if (res.ok) {
-        const data = await res.json();
-        setSettings(data);
+        const data: UserSettings = await res.json();
+        setSettings({ ...emptySettings, ...data });
       }
     } catch (err) {
       console.error(err);
@@ -102,11 +111,7 @@ export default function Profile() {
 
   const handleRegenerate = async (doc: StoredDocument) => {
     try {
-      if (doc.type === 'kp' || (doc.state && typeof doc.state === 'object' && 'vendorInfos' in doc.state)) {
-        await generateKpDocx(doc.state as KpDocxData);
-      } else {
-        await generateDocx(doc.state as AppState);
-      }
+      await generateRegisteredDocument(doc.type, doc.state);
     } catch (err) {
       console.error(err);
       showMessage('Не удалось сформировать документ.', true);
@@ -176,6 +181,57 @@ export default function Profile() {
                     onChange={e => setSettings({...settings, executorName: e.target.value})}
                   />
                 </div>
+                <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
+                  <p className="text-[10px] uppercase font-bold opacity-60">Контакты для запроса КП</p>
+                  <div className="flex flex-col">
+                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">E-mail для приема КП</label>
+                    <input
+                      type="text"
+                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                      value={settings.submissionEmail || ''}
+                      onChange={e => setSettings({...settings, submissionEmail: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Контактное лицо</label>
+                    <input
+                      type="text"
+                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                      value={settings.contactPerson || ''}
+                      onChange={e => setSettings({...settings, contactPerson: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Телефон контактного лица</label>
+                    <input
+                      type="text"
+                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                      value={settings.contactPhone || ''}
+                      onChange={e => setSettings({...settings, contactPhone: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
+                  <p className="text-[10px] uppercase font-bold opacity-60">Типовые условия</p>
+                  <div className="flex flex-col">
+                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Место оказания услуг</label>
+                    <textarea
+                      rows={3}
+                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black resize-none"
+                      value={settings.defaultServicePlace || ''}
+                      onChange={e => setSettings({...settings, defaultServicePlace: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Типовые условия</label>
+                    <textarea
+                      rows={4}
+                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black resize-none"
+                      value={settings.defaultServiceConditions || ''}
+                      onChange={e => setSettings({...settings, defaultServiceConditions: e.target.value})}
+                    />
+                  </div>
+                </div>
                 <button type="submit" className="mt-2 bg-[#141414] text-white py-2 text-sm font-bold uppercase hover:bg-black/80 transition-colors">
                   Сохранить
                 </button>
@@ -217,9 +273,9 @@ export default function Profile() {
                   {documents.map(doc => (
                     <div key={doc.id} className="flex justify-between items-center p-3 border border-black/10 hover:border-black transition-colors group">
                       <div>
-                        <h3 className="text-sm font-bold">{doc.name || 'Обоснование НМЦК'}</h3>
+                        <h3 className="text-sm font-bold">{doc.name || getDocumentTitle(doc.type)}</h3>
                         <p className="text-[10px] opacity-60">
-                          {doc.type === 'kp' ? 'Запрос КП' : 'Обоснование НМЦК'} · {new Date(doc.createdAt).toLocaleString('ru-RU')}
+                          {getDocumentTitle(doc.type)} · {new Date(doc.createdAt).toLocaleString('ru-RU')}
                         </p>
                       </div>
                       <button

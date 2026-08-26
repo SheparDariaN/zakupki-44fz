@@ -1,17 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AppState } from '../types';
 import { formatMoney, formatMoney4, calculateAverage, calculateStandardDeviation, calculateCV, isCvHeterogeneous } from '../utils/math';
-import { generateDocx, METHOD_TEXT } from '../utils/docxGenerator';
+import { METHOD_TEXT } from '../utils/docxGenerator';
 import { formatAmountInWords } from '../utils/numberToWords';
 import { Trash2, Plus, RefreshCw, Download, User } from 'lucide-react';
 import AppNav from './AppNav';
 import { apiFetch, readApiError } from '../utils/api';
+import { DOCUMENT_REGISTRY } from '../documents/registry';
+import { applyNmckAutofill, resolveAutofill, type AutofillUserSettings } from '../documents/autofill';
+import type { AutofillSourceKind } from '../documents/templateTypes';
+import { formatDateRu } from '../utils/morphology';
+import AutofillPanel from './AutofillPanel';
+import { saveCurrentPurchase } from '../utils/currentPurchase';
+import { normalizeNmckState } from '../documents/templateNormalization';
 
 const initialState: AppState = {
   requisites: {
     customer: '',
     subject: '',
-    date: new Date().toLocaleDateString('ru-RU'),
+    date: formatDateRu(new Date()),
     executorName: '',
     executorPosition: '',
   },
@@ -36,6 +43,9 @@ const initialState: AppState = {
 
 export default function App() {
   const [state, setState] = useState<AppState>(initialState);
+  const [userSettings, setUserSettings] = useState<AutofillUserSettings>();
+  const [autofillSource, setAutofillSource] = useState<'all' | AutofillSourceKind>('all');
+  const [autofillOverwrite, setAutofillOverwrite] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState('');
   const [downloadMessageError, setDownloadMessageError] = useState(false);
 
@@ -45,15 +55,8 @@ export default function App() {
         const res = await apiFetch('/api/user/settings');
         if (res.ok) {
           const settings = await res.json();
-          setState(prev => ({
-            ...prev,
-            requisites: {
-              ...prev.requisites,
-              customer: settings.customer || prev.requisites.customer,
-              executorPosition: settings.executorPosition || prev.requisites.executorPosition,
-              executorName: settings.executorName || prev.requisites.executorName,
-            }
-          }));
+          setUserSettings(settings);
+          setState(prev => applyNmckAutofill(prev, { userSettings: settings }).state);
         }
       } catch (e) {
         console.error(e);
@@ -61,6 +64,29 @@ export default function App() {
     };
     fetchSettings();
   }, []);
+
+  useEffect(() => {
+    saveCurrentPurchase(state);
+  }, [state]);
+
+  const autofillSourceKinds = autofillSource === 'all' ? undefined : [autofillSource];
+  const autofillSuggestions = useMemo(() => resolveAutofill('nmck', state, { userSettings }, {
+    includeFilled: true,
+    sourceKinds: autofillSourceKinds,
+  }), [autofillSourceKinds, state, userSettings]);
+
+  const applyAutofillSuggestions = () => {
+    const result = applyNmckAutofill(state, { userSettings }, {
+      includeFilled: true,
+      overwrite: autofillOverwrite,
+      sourceKinds: autofillSourceKinds,
+    });
+    setState(result.state);
+    setDownloadMessage(result.changed.length > 0
+      ? `Автозаполнение применено: ${result.changed.length} пол.`
+      : 'Нет полей для автозаполнения без перезаписи.');
+    setDownloadMessageError(false);
+  };
 
   const resetState = () => {
     // preserve settings when resetting
@@ -127,8 +153,9 @@ export default function App() {
 
   const handleDocxDownload = async () => {
     setDownloadMessage('');
+    const documentState = normalizeNmckState(state);
     try {
-      await generateDocx(state);
+      await DOCUMENT_REGISTRY.nmck.generate(documentState);
     } catch (e) {
       console.error(e);
       setDownloadMessage('Не удалось сформировать DOCX. Проверьте данные и попробуйте ещё раз.');
@@ -141,9 +168,9 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: state.requisites.subject || 'Обоснование НМЦК',
-          state,
-          type: 'nmck'
+          name: DOCUMENT_REGISTRY.nmck.getHistoryName(documentState),
+          state: documentState,
+          type: DOCUMENT_REGISTRY.nmck.kind
         })
       });
       if (!res.ok) {
@@ -191,6 +218,22 @@ export default function App() {
         
         {/* LEFT COLUMN: FORMS */}
         <aside className="col-span-1 xl:col-span-4 flex flex-col gap-6 overflow-hidden scroll-area pr-2">
+          <AutofillPanel
+            title="Автозаполнение"
+            description="Проверьте предложения перед подстановкой в реквизиты НМЦК."
+            sourceOptions={[
+              { value: 'all', label: 'Все доступные источники' },
+              { value: 'userSettings', label: 'Профиль пользователя' },
+              { value: 'currentDate', label: 'Текущая дата' },
+            ]}
+            selectedSource={autofillSource}
+            onSourceChange={setAutofillSource}
+            suggestions={autofillSuggestions}
+            overwrite={autofillOverwrite}
+            onOverwriteChange={setAutofillOverwrite}
+            onApply={applyAutofillSuggestions}
+            contextNote="Эта НМЦК автоматически доступна для переноса в запрос КП и служебку."
+          />
           
           <section className="bg-white/50 p-5 border border-[#141414] shrink-0 shadow-sm transition-all hover:bg-white/80">
             <h2 className="text-[11px] uppercase font-bold mb-4 flex items-center gap-2">
@@ -354,7 +397,8 @@ export default function App() {
 }
 
 function PreviewContent({ state }: { state: AppState }) {
-  const { requisites, suppliers, positions, prices } = state;
+  const normalizedState = useMemo(() => normalizeNmckState(state), [state]);
+  const { requisites, suppliers, positions, prices } = normalizedState;
   let grandTotal = 0;
   let hasHeterogeneousCv = false;
 

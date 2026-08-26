@@ -54,11 +54,11 @@ Authorization: Bearer <jwt>
 
 ### `GET /api/user/settings`
 
-`{ customer, executorPosition, executorName }` или пустые строки.
+`{ customer, executorPosition, executorName, submissionEmail, contactPerson, contactPhone, defaultServicePlace, defaultServiceConditions }` или пустые строки.
 
 ### `POST /api/user/settings`
 
-В `user.settings` попадают только поля `customer`, `executorPosition`, `executorName` (строки). Остальное из body игнорируется. Эти поля подставляются в калькулятор НМЦК при загрузке.
+В `user.settings` попадают только поля `customer`, `executorPosition`, `executorName`, `submissionEmail`, `contactPerson`, `contactPhone`, `defaultServicePlace`, `defaultServiceConditions` (строки). Остальное из body игнорируется. Эти поля подставляются в НМЦК, запрос КП и будущие документы через схемы автозаполнения.
 
 ## История документов (JWT, свой user)
 
@@ -66,13 +66,13 @@ Authorization: Bearer <jwt>
 
 Документы текущего пользователя, новые сверху. Побочный эффект: удаление всех записей старше 3 суток. Файл БД переписывается, только если что-то истекло.
 
-Элемент: `{ id, userId, name, state, type, createdAt }` где `type` — `'nmck'` | `'kp'`, `state` — полный снимок формы.
+Элемент: `{ id, userId, name, state, type, createdAt }` где `type` — `'nmck'` | `'kp'` | `'memo'`, `state` — полный снимок формы.
 
 ### `POST /api/user/documents`
 
-Тело: `{ "name": string, "state": object, "type": "nmck" | "kp" }`. `type` по умолчанию `nmck`.
+Тело: `{ "name": string, "state": object, "type": "nmck" | "kp" | "memo" }`. `type` по умолчанию `nmck`.
 
-Ограничения: `name` обязателен (до 500 символов); `type` только `nmck` \| `kp`; `state` — объект не больше 256 КБ JSON; не больше 50 документов на пользователя (после очистки старше 3 суток).
+Ограничения: `name` обязателен (до 500 символов); `type` только `nmck` \| `kp` \| `memo`; `state` — объект не больше 256 КБ JSON; не больше 50 документов на пользователя (после очистки старше 3 суток).
 
 ## Справочник контрагентов (JWT, общий)
 
@@ -84,9 +84,15 @@ Authorization: Bearer <jwt>
 {
   "id": 1,
   "companyName": "ООО \"Поставщик\"",
+  "shortName": "ООО \"Поставщик\"",
+  "fullName": "Общество с ограниченной ответственностью \"Поставщик\"",
   "director": "Иванов Иван Иванович",
+  "directorGenitive": "Иванова Ивана Ивановича",
+  "directorDative": "Иванову Ивану Ивановичу",
   "email": "info@example.ru",
+  "phone": "+7 (000) 000-00-00",
   "legalAddress": "г. Москва, ...",
+  "postalAddress": "г. Москва, ...",
   "tags": ["поставка", "мебель"],
   "createdAt": 1720000000000,
   "updatedAt": 1720000000000
@@ -101,7 +107,7 @@ Authorization: Bearer <jwt>
 
 ### `POST /api/counterparties`
 
-Тело: `{ "companyName": string, "director"?: string, "email"?: string, "legalAddress"?: string, "tags"?: string[] }`
+Тело: `{ "companyName": string, "shortName"?: string, "fullName"?: string, "director"?: string, "directorGenitive"?: string, "directorDative"?: string, "email"?: string, "phone"?: string, "legalAddress"?: string, "postalAddress"?: string, "tags"?: string[] }`
 
 Ответ 200: `{ "success": true, "counterparty": { ... } }`
 

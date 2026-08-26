@@ -1,3 +1,11 @@
+export const DOCUMENT_KINDS = ['nmck', 'kp', 'memo'] as const;
+
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
+
+export function isDocumentKind(value: unknown): value is DocumentKind {
+  return typeof value === 'string' && (DOCUMENT_KINDS as readonly string[]).includes(value);
+}
+
 export interface Supplier {
   id: string;
   name: string;
@@ -46,9 +54,15 @@ export interface KpDocxData {
 export interface Counterparty {
   id: number;
   companyName: string;
+  shortName: string;
+  fullName: string;
   director: string;
+  directorGenitive: string;
+  directorDative: string;
   email: string;
+  phone: string;
   legalAddress: string;
+  postalAddress: string;
   tags: string[];
   createdAt: number;
   updatedAt: number;
@@ -62,3 +76,11 @@ export interface ServiceMemoData {
   contractServiceHead: string;
   date: string;
 }
+
+export type DocumentStateByKind = {
+  nmck: AppState;
+  kp: KpDocxData;
+  memo: ServiceMemoData;
+};
+
+export type DocumentState = DocumentStateByKind[DocumentKind];

@@ -1,9 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Download, RefreshCw, User } from 'lucide-react';
 import { ServiceMemoData } from '../types';
-import { generateServiceMemoDocx } from '../utils/serviceMemoDocxGenerator';
 import AppNav from './AppNav';
 import ServiceMemoPreview from './ServiceMemoPreview';
+import { apiFetch, readApiError } from '../utils/api';
+import { DOCUMENT_REGISTRY } from '../documents/registry';
+import { applyMemoAutofill, resolveAutofill, type AutofillUserSettings } from '../documents/autofill';
+import type { AutofillSourceKind } from '../documents/templateTypes';
+import AutofillPanel from './AutofillPanel';
+import { describeCurrentPurchase, loadCurrentPurchase } from '../utils/currentPurchase';
+import { normalizeMemoState } from '../documents/templateNormalization';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -18,9 +24,62 @@ const defaultValues: ServiceMemoData = {
 
 export default function ServiceMemo() {
   const [data, setData] = useState<ServiceMemoData>(defaultValues);
+  const [userSettings, setUserSettings] = useState<AutofillUserSettings>();
+  const [currentPurchase] = useState(() => loadCurrentPurchase());
+  const [autofillSource, setAutofillSource] = useState<'all' | AutofillSourceKind>('all');
+  const [autofillOverwrite, setAutofillOverwrite] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState('');
   const [downloadMessageError, setDownloadMessageError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function fetchSettings() {
+      try {
+        const res = await apiFetch('/api/user/settings');
+        if (!active) return;
+
+        if (res.ok) {
+          const settings = await res.json();
+          setUserSettings(settings);
+          setData(prev => applyMemoAutofill(prev, { userSettings: settings }).state);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    void fetchSettings();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const autofillContext = useMemo(() => ({
+    userSettings,
+    currentPurchase,
+  }), [currentPurchase, userSettings]);
+
+  const autofillSourceKinds = autofillSource === 'all' ? undefined : [autofillSource];
+  const autofillSuggestions = useMemo(() => resolveAutofill('memo', data, autofillContext, {
+    includeFilled: true,
+    sourceKinds: autofillSourceKinds,
+  }), [autofillContext, autofillSourceKinds, data]);
+
+  const applyAutofillSuggestions = () => {
+    const result = applyMemoAutofill(data, autofillContext, {
+      includeFilled: true,
+      overwrite: autofillOverwrite,
+      sourceKinds: autofillSourceKinds,
+    });
+    setData(result.state);
+    setDownloadMessage(result.changed.length > 0
+      ? `Автозаполнение применено: ${result.changed.length} пол.`
+      : 'Нет полей для автозаполнения без перезаписи.');
+    setDownloadMessageError(false);
+  };
 
   const handleChange = (field: keyof ServiceMemoData, value: string) => {
     setData(prev => ({ ...prev, [field]: value }));
@@ -36,9 +95,30 @@ export default function ServiceMemo() {
     setIsGenerating(true);
     setDownloadMessage('');
     setDownloadMessageError(false);
+    const documentData = normalizeMemoState(data);
 
     try {
-      await generateServiceMemoDocx(data);
+      await DOCUMENT_REGISTRY.memo.generate(documentData);
+
+      try {
+        const res = await apiFetch('/api/user/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: DOCUMENT_REGISTRY.memo.getHistoryName(documentData),
+            state: documentData,
+            type: DOCUMENT_REGISTRY.memo.kind
+          })
+        });
+        if (!res.ok) {
+          setDownloadMessage(`Документ скачан, но история не сохранена: ${await readApiError(res)}`);
+          setDownloadMessageError(true);
+        }
+      } catch (error) {
+        console.error("Failed to save document history", error);
+        setDownloadMessage('Документ скачан, но история не сохранена: ошибка сети.');
+        setDownloadMessageError(true);
+      }
     } catch (error) {
       console.error("Failed to generate service memo docx", error);
       setDownloadMessage('Не удалось сформировать служебную записку. Проверьте данные и попробуйте ещё раз.');
@@ -51,13 +131,14 @@ export default function ServiceMemo() {
   const labelClass = "text-[9px] uppercase opacity-60 mb-1 font-bold";
   const fieldClass = "bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors";
   const textareaClass = "w-full bg-transparent border border-[#141414] px-2 py-1.5 text-xs focus:outline-none focus:bg-white resize-none";
+  const normalizedData = useMemo(() => normalizeMemoState(data), [data]);
   const canGenerate = Boolean(
-    data.purpose.trim() &&
-    data.subjectIntro.trim() &&
-    data.subjectTable.trim() &&
-    data.requester.trim() &&
-    data.contractServiceHead.trim() &&
-    data.date.trim()
+    normalizedData.purpose &&
+    normalizedData.subjectIntro &&
+    normalizedData.subjectTable &&
+    normalizedData.requester &&
+    normalizedData.contractServiceHead &&
+    normalizedData.date
   );
 
   return (
@@ -93,6 +174,24 @@ export default function ServiceMemo() {
 
       <main className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-grow overflow-hidden">
         <aside className="col-span-1 xl:col-span-4 flex flex-col gap-6 overflow-hidden scroll-area pr-2">
+          <AutofillPanel
+            title="Автозаполнение"
+            description="Проверьте предложения и перенесите данные НМЦК или профиля в служебку."
+            sourceOptions={[
+              { value: 'all', label: 'Все доступные источники' },
+              { value: 'currentPurchase', label: 'Текущая НМЦК' },
+              { value: 'userSettings', label: 'Профиль пользователя' },
+              { value: 'currentDate', label: 'Текущая дата' },
+            ]}
+            selectedSource={autofillSource}
+            onSourceChange={setAutofillSource}
+            suggestions={autofillSuggestions}
+            overwrite={autofillOverwrite}
+            onOverwriteChange={setAutofillOverwrite}
+            onApply={applyAutofillSuggestions}
+            contextNote={`НМЦК: ${describeCurrentPurchase(currentPurchase)}`}
+          />
+
           <section className="bg-white/50 p-5 border border-[#141414] shrink-0 shadow-sm transition-all hover:bg-white/80">
             <h2 className="text-[11px] uppercase font-bold mb-4">Шапка документа</h2>
             <div className="flex flex-col gap-4">
@@ -181,7 +280,7 @@ export default function ServiceMemo() {
             <span className="text-[10px] text-green-700 font-bold uppercase animate-pulse">● Авто-обновление</span>
           </div>
           <div className="scroll-area flex-1 transition-all overflow-auto bg-[#d7d5d0] p-6">
-            <ServiceMemoPreview data={data} />
+            <ServiceMemoPreview data={normalizedData} />
           </div>
         </article>
       </main>

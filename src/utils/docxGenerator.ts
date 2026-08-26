@@ -1,8 +1,9 @@
-import { Document, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, WidthType, Packer, AlignmentType, HeadingLevel, VerticalAlign, PageOrientation } from 'docx';
-import { saveAs } from 'file-saver';
+import { Document, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, WidthType, AlignmentType, HeadingLevel, VerticalAlign, PageOrientation } from 'docx';
 import { AppState } from '../types';
 import { calculateAverage, calculateStandardDeviation, calculateCV, formatMoney, formatMoney4 } from './math';
 import { formatAmountInWords } from './numberToWords';
+import { generateDocumentBatch } from './documentBatch';
+import { normalizeNmckState } from '../documents/templateNormalization';
 
 export const METHOD_TEXT = "В соответствии со ст. 22 Федерального закона от 05.04.2013 № 44-ФЗ «О контрактной системе в сфере закупок товаров, работ, услуг для обеспечения государственных и муниципальных нужд» расчет начальной (максимальной) цены контракта (далее – НМЦК) произведен методом сопоставимых рыночных цен (анализа рынка) в соответствии с Методическими рекомендациями по применению методов определения начальной (максимальной) цены контракта, цены контракта, заключаемого с единственным поставщиком (подрядчиком, исполнителем), утвержденными Приказом Министерства экономического развития РФ от 2 октября 2013 г. N 567 (далее – Методические рекомендации).";
 
@@ -23,7 +24,8 @@ const createCell = (text: string | Paragraph[], colSpan: number = 1, align: Docx
 };
 
 export const generateDocx = async (state: AppState) => {
-  const { requisites, suppliers, positions, prices } = state;
+  const normalizedState = normalizeNmckState(state);
+  const { requisites, suppliers, positions, prices } = normalizedState;
   const numSuppliers = suppliers.length;
   const totalCols = 4 + numSuppliers + 4;
   let grandTotal = 0;
@@ -223,6 +225,8 @@ export const generateDocx = async (state: AppState) => {
     ],
   });
 
-  const blob = await Packer.toBlob(doc);
-  saveAs(blob, `Обоснование_НМЦК.docx`);
+  await generateDocumentBatch(
+    [{ document: doc, filename: "Обоснование_НМЦК.docx" }],
+    { singleFileName: "Обоснование_НМЦК.docx", zipFileName: "Обоснования_НМЦК.zip" }
+  );
 };

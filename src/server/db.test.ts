@@ -55,6 +55,67 @@ describe('JSONDatabase', () => {
     expect(raw.counterparties).toEqual([]);
   });
 
+  it('поддерживает служебную записку как тип документа', async () => {
+    const db = await loadDb({ users: [], documents: [], counterparties: [] });
+
+    const document = await db.addDocument(1, 'Служебная записка', { subjectIntro: 'Закупка ПО' }, 'memo');
+
+    expect(document.type).toBe('memo');
+    await expect(db.addDocument(1, 'Неверный тип', {}, 'letter')).rejects.toMatchObject({
+      status: 400,
+      message: 'Тип документа должен быть nmck, kp или memo',
+    });
+  });
+
+  it('нормализует расширенные настройки профиля и отбрасывает лишние поля', async () => {
+    const db = await loadDb({
+      users: [
+        {
+          id: 1,
+          username: 'user',
+          password: 'hash',
+          role: 'user',
+          settings: {
+            customer: 'ГКУ «ЦИТ Кузбасса»',
+            executorName: 'Иванов Иван Иванович',
+          },
+          mustChangePassword: false,
+        },
+      ],
+      documents: [],
+      counterparties: [],
+    });
+
+    expect(await db.getUserSettings(1)).toEqual({
+      customer: 'ГКУ «ЦИТ Кузбасса»',
+      executorPosition: '',
+      executorName: 'Иванов Иван Иванович',
+      submissionEmail: '',
+      contactPerson: '',
+      contactPhone: '',
+      defaultServicePlace: '',
+      defaultServiceConditions: '',
+    });
+
+    await expect(db.updateUserSettings(1, {
+      submissionEmail: 'kp@example.test',
+      contactPerson: 'Петров Петр Петрович',
+      contactPhone: '+7 000 000-00-00',
+      defaultServicePlace: 'г. Кемерово',
+      defaultServiceConditions: 'Срок оказания услуг: 30 дней',
+      ignored: 'не сохраняется',
+    })).resolves.toEqual({
+      customer: 'ГКУ «ЦИТ Кузбасса»',
+      executorPosition: '',
+      executorName: 'Иванов Иван Иванович',
+      submissionEmail: 'kp@example.test',
+      contactPerson: 'Петров Петр Петрович',
+      contactPhone: '+7 000 000-00-00',
+      defaultServicePlace: 'г. Кемерово',
+      defaultServiceConditions: 'Срок оказания услуг: 30 дней',
+    });
+  });
+
   it('нормализует контрагентов из файла БД', async () => {
     const db = await loadDb({
       users: [],
@@ -63,9 +124,15 @@ describe('JSONDatabase', () => {
         {
           id: 10,
           companyName: '  ООО Ромашка  ',
+          shortName: ' Ромашка ',
+          fullName: '  Общество с ограниченной ответственностью Ромашка  ',
           director: '  Иванов Иван Иванович  ',
+          directorGenitive: ' Иванова Ивана Ивановича ',
+          directorDative: ' Иванову Ивану Ивановичу ',
           email: '  info@example.test  ',
+          phone: ' +7 000 000-00-00 ',
           legalAddress: '  г. Москва  ',
+          postalAddress: '  101000, г. Москва  ',
           tags: [' поставщик ', '', 'поставщик', '44-ФЗ', 123, '44-ФЗ'],
           createdAt: 1000,
         },
@@ -78,9 +145,15 @@ describe('JSONDatabase', () => {
       {
         id: 10,
         companyName: 'ООО Ромашка',
+        shortName: 'Ромашка',
+        fullName: 'Общество с ограниченной ответственностью Ромашка',
         director: 'Иванов Иван Иванович',
+        directorGenitive: 'Иванова Ивана Ивановича',
+        directorDative: 'Иванову Ивану Ивановичу',
         email: 'info@example.test',
+        phone: '+7 000 000-00-00',
         legalAddress: 'г. Москва',
+        postalAddress: '101000, г. Москва',
         tags: ['поставщик', '44-ФЗ'],
         createdAt: 1000,
         updatedAt: 1000,
@@ -95,18 +168,30 @@ describe('JSONDatabase', () => {
     const db = await loadDb({ users: [], documents: [], counterparties: [] });
     const created = await db.createCounterparty({
       companyName: '  ООО Вектор  ',
+      shortName: ' Вектор ',
+      fullName: '  Общество с ограниченной ответственностью Вектор  ',
       director: '  Петров Пётр Петрович  ',
+      directorGenitive: ' Петрова Петра Петровича ',
+      directorDative: ' Петрову Петру Петровичу ',
       email: '  vector@example.test  ',
+      phone: ' +7 111 111-11-11 ',
       legalAddress: '  г. Казань  ',
+      postalAddress: '  420000, г. Казань  ',
       tags: [' срочно ', 'важно', 'срочно', '', null],
     });
 
     expect(created).toEqual({
       id: 1,
       companyName: 'ООО Вектор',
+      shortName: 'Вектор',
+      fullName: 'Общество с ограниченной ответственностью Вектор',
       director: 'Петров Пётр Петрович',
+      directorGenitive: 'Петрова Петра Петровича',
+      directorDative: 'Петрову Петру Петровичу',
       email: 'vector@example.test',
+      phone: '+7 111 111-11-11',
       legalAddress: 'г. Казань',
+      postalAddress: '420000, г. Казань',
       tags: ['срочно', 'важно'],
       createdAt: new Date('2026-01-01T10:00:00.000Z').getTime(),
       updatedAt: new Date('2026-01-01T10:00:00.000Z').getTime(),

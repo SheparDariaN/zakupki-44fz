@@ -2,7 +2,6 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
-  Packer,
   Paragraph,
   Table,
   TableCell,
@@ -11,14 +10,13 @@ import {
   VerticalAlign,
   WidthType,
 } from "docx";
-import { saveAs } from "file-saver";
 import { ServiceMemoData } from "../types";
+import { normalizeMemoState } from "../documents/templateNormalization";
+import { generateDocumentBatch } from "./documentBatch";
+import { formatDateRu } from "./morphology";
 
 export function formatServiceMemoDate(value: string) {
-  if (!value) return "";
-  const [year, month, day] = value.split("-");
-  if (!year || !month || !day) return value;
-  return `${day}.${month}.${year}`;
+  return formatDateRu(value);
 }
 
 export function getServiceMemoSubjectItems(value: string) {
@@ -181,7 +179,10 @@ const buildServiceMemoDocument = (data: ServiceMemoData) => {
 };
 
 export const generateServiceMemoDocx = async (data: ServiceMemoData) => {
-  const doc = buildServiceMemoDocument(data);
-  const blob = await Packer.toBlob(doc);
-  saveAs(blob, "Служебная_записка_на_закупку.docx");
+  const normalizedData = normalizeMemoState(data);
+  const doc = buildServiceMemoDocument(normalizedData);
+  await generateDocumentBatch(
+    [{ document: doc, filename: "Служебная_записка_на_закупку.docx" }],
+    { singleFileName: "Служебная_записка_на_закупку.docx", zipFileName: "Служебные_записки.zip" }
+  );
 };

@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Counterparty, KpDocxData } from '../types';
-import { generateKpDocx } from '../utils/kpDocxGenerator';
 import KpDocumentPreview from './KpDocumentPreview';
 import AppNav from './AppNav';
 import { Trash2, Plus, RefreshCw, Download, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiFetch, readApiError } from '../utils/api';
+import { DOCUMENT_REGISTRY } from '../documents/registry';
+import { applyKpAutofill, formatCounterpartyVendorInfo, resolveAutofill, type AutofillUserSettings } from '../documents/autofill';
+import type { AutofillSourceKind } from '../documents/templateTypes';
+import AutofillPanel from './AutofillPanel';
+import { describeCurrentPurchase, loadCurrentPurchase } from '../utils/currentPurchase';
+import { normalizeKpState } from '../documents/templateNormalization';
 
 const defaultValues: KpDocxData = {
   vendorInfos: [
@@ -27,17 +32,12 @@ info@softmall.ru`
   contactPerson: `Богданов Валентин Олегович, т. 8-384-244-26-28`
 };
 
-function formatCounterpartyVendorInfo(counterparty: Counterparty): string {
-  return [
-    counterparty.companyName,
-    counterparty.director,
-    counterparty.legalAddress,
-    counterparty.email,
-  ].map((value) => value.trim()).filter(Boolean).join('\n\n');
-}
-
 export default function KpRequest() {
   const [data, setData] = useState<KpDocxData>(defaultValues);
+  const [userSettings, setUserSettings] = useState<AutofillUserSettings>();
+  const [currentPurchase] = useState(() => loadCurrentPurchase());
+  const [autofillSource, setAutofillSource] = useState<'all' | AutofillSourceKind>('all');
+  const [autofillOverwrite, setAutofillOverwrite] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [downloadMessage, setDownloadMessage] = useState('');
@@ -86,6 +86,31 @@ export default function KpRequest() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    async function fetchSettings() {
+      try {
+        const res = await apiFetch('/api/user/settings');
+        if (!active) return;
+
+        if (res.ok) {
+          const settings = await res.json();
+          setUserSettings(settings);
+          setData(prev => applyKpAutofill(prev, { userSettings: settings }).state);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    void fetchSettings();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const availableCounterpartyTags = useMemo(() => {
     const tags = new Set<string>();
     counterparties.forEach((counterparty) => {
@@ -128,6 +153,37 @@ export default function KpRequest() {
     }
   }, [filteredCounterparties, selectedCounterpartyId]);
 
+  const selectedCounterparty = useMemo(() => (
+    counterparties.find((counterparty) => String(counterparty.id) === selectedCounterpartyId)
+  ), [counterparties, selectedCounterpartyId]);
+
+  const autofillContext = useMemo(() => ({
+    userSettings,
+    currentPurchase,
+    selectedCounterparties: selectedCounterparty ? [selectedCounterparty] : [],
+    counterparties,
+  }), [counterparties, currentPurchase, selectedCounterparty, userSettings]);
+
+  const autofillSourceKinds = autofillSource === 'all' ? undefined : [autofillSource];
+  const autofillSuggestions = useMemo(() => resolveAutofill('kp', data, autofillContext, {
+    includeFilled: true,
+    sourceKinds: autofillSourceKinds,
+  }), [autofillContext, autofillSourceKinds, data]);
+
+  const applyAutofillSuggestions = () => {
+    const result = applyKpAutofill(data, autofillContext, {
+      includeFilled: true,
+      overwrite: autofillOverwrite,
+      sourceKinds: autofillSourceKinds,
+    });
+    setData(result.state);
+    setPreviewIndex(0);
+    setDownloadMessage(result.changed.length > 0
+      ? `Автозаполнение применено: ${result.changed.length} пол.`
+      : 'Нет полей для автозаполнения без перезаписи.');
+    setDownloadMessageError(false);
+  };
+
   const handleChange = (field: keyof KpDocxData, value: string) => {
     setData(prev => ({ ...prev, [field]: value }));
   };
@@ -144,7 +200,7 @@ export default function KpRequest() {
   };
 
   const getSelectedCounterparty = () => (
-    counterparties.find((counterparty) => String(counterparty.id) === selectedCounterpartyId)
+    selectedCounterparty
   );
 
   const addSelectedCounterparty = () => {
@@ -206,19 +262,18 @@ export default function KpRequest() {
   const handleGenerate = async () => {
     setIsGenerating(true);
     setDownloadMessage('');
+    const documentData = normalizeKpState(data);
     try {
-      await generateKpDocx(data);
+      await DOCUMENT_REGISTRY.kp.generate(documentData);
 
       try {
-        const firstVendor = data.vendorInfos.find(v => v.trim()) || '';
-        const name = data.subjectTable || data.subjectIntro || 'Запрос КП';
         const res = await apiFetch('/api/user/documents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: firstVendor ? `Запрос КП: ${name}` : name,
-            state: data,
-            type: 'kp'
+            name: DOCUMENT_REGISTRY.kp.getHistoryName(documentData),
+            state: documentData,
+            type: DOCUMENT_REGISTRY.kp.kind
           })
         });
         if (!res.ok) {
@@ -242,7 +297,8 @@ export default function KpRequest() {
   const labelClass = "text-[9px] uppercase opacity-60 mb-1 font-bold";
   const fieldClass = "bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors";
   const textareaClass = "w-full bg-transparent border border-[#141414] px-2 py-1.5 text-xs focus:outline-none focus:bg-white resize-none";
-  const vendorCount = data.vendorInfos.filter(v => v.trim()).length;
+  const normalizedData = useMemo(() => normalizeKpState(data), [data]);
+  const vendorCount = normalizedData.vendorInfos.filter(v => v.trim()).length;
   const canUseSelectedCounterparty = Boolean(getSelectedCounterparty());
 
   return (
@@ -284,6 +340,24 @@ export default function KpRequest() {
       <main className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-grow overflow-hidden">
 
         <aside className="col-span-1 xl:col-span-4 flex flex-col gap-6 overflow-hidden scroll-area pr-2">
+          <AutofillPanel
+            title="Автозаполнение"
+            description="Выберите источник, проверьте предложения и перенесите данные в запрос КП."
+            sourceOptions={[
+              { value: 'all', label: 'Все доступные источники' },
+              { value: 'currentPurchase', label: 'Текущая НМЦК' },
+              { value: 'counterparty', label: 'Выбранный контрагент' },
+              { value: 'userSettings', label: 'Профиль пользователя' },
+              { value: 'currentDate', label: 'Текущая дата' },
+            ]}
+            selectedSource={autofillSource}
+            onSourceChange={setAutofillSource}
+            suggestions={autofillSuggestions}
+            overwrite={autofillOverwrite}
+            onOverwriteChange={setAutofillOverwrite}
+            onApply={applyAutofillSuggestions}
+            contextNote={`НМЦК: ${describeCurrentPurchase(currentPurchase)}`}
+          />
 
           <section className="flex flex-col border border-[#141414] bg-white/40 shrink-0 shadow-sm transition-all hover:bg-white/60">
             <div className="p-3 border-b border-[#141414] flex justify-between items-center shrink-0 bg-black/5">
@@ -528,11 +602,11 @@ export default function KpRequest() {
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <span className="text-[10px] uppercase font-bold px-3">
-                    Документ {previewIndex + 1} из {data.vendorInfos.length}
+                    Документ {previewIndex + 1} из {normalizedData.vendorInfos.length}
                   </span>
                   <button
-                    onClick={() => setPreviewIndex(i => Math.min(data.vendorInfos.length - 1, i + 1))}
-                    disabled={previewIndex === data.vendorInfos.length - 1}
+                    onClick={() => setPreviewIndex(i => Math.min(normalizedData.vendorInfos.length - 1, i + 1))}
+                    disabled={previewIndex === normalizedData.vendorInfos.length - 1}
                     className="p-1 hover:bg-black/5 disabled:opacity-30 transition-colors"
                   >
                     <ChevronRight className="w-4 h-4" />
@@ -543,7 +617,7 @@ export default function KpRequest() {
             </div>
           </div>
           <div className="scroll-area flex-1 transition-all overflow-auto bg-[#d7d5d0] p-6">
-            <KpDocumentPreview data={data} vendorIndex={previewIndex} />
+            <KpDocumentPreview data={normalizedData} vendorIndex={previewIndex} />
           </div>
         </article>
 

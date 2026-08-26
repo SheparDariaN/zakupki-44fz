@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import bcrypt from 'bcryptjs';
+import { isDocumentKind } from '../types';
 import { HttpError } from './errors';
 import {
   isUserRole,
@@ -23,25 +24,30 @@ export const MAX_DOCUMENTS_PER_USER = 50;
 export const MAX_DOCUMENT_NAME_LENGTH = 500;
 export const DOCUMENT_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
-const DOCUMENT_TYPES: readonly DocumentType[] = ['nmck', 'kp'];
-
 const EMPTY_SETTINGS: UserSettings = {
   customer: '',
   executorPosition: '',
   executorName: '',
+  submissionEmail: '',
+  contactPerson: '',
+  contactPhone: '',
+  defaultServicePlace: '',
+  defaultServiceConditions: '',
 };
 
 const EMPTY_COUNTERPARTY_FIELDS = {
+  shortName: '',
+  fullName: '',
   director: '',
+  directorGenitive: '',
+  directorDative: '',
   email: '',
+  phone: '',
   legalAddress: '',
+  postalAddress: '',
 };
 
 let dbInstance: JSONDatabase | null = null;
-
-function isDocumentType(value: unknown): value is DocumentType {
-  return typeof value === 'string' && (DOCUMENT_TYPES as readonly string[]).includes(value);
-}
 
 function asString(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
@@ -73,6 +79,11 @@ function pickSettings(input: unknown, base: UserSettings = EMPTY_SETTINGS): User
     customer: asString(src.customer, base.customer),
     executorPosition: asString(src.executorPosition, base.executorPosition),
     executorName: asString(src.executorName, base.executorName),
+    submissionEmail: asString(src.submissionEmail, base.submissionEmail),
+    contactPerson: asString(src.contactPerson, base.contactPerson),
+    contactPhone: asString(src.contactPhone, base.contactPhone),
+    defaultServicePlace: asString(src.defaultServicePlace, base.defaultServicePlace),
+    defaultServiceConditions: asString(src.defaultServiceConditions, base.defaultServiceConditions),
   };
 }
 
@@ -154,7 +165,7 @@ class JSONDatabase {
       userId: d.userId,
       name: asString(d.name),
       state: d.state ?? {},
-      type: isDocumentType(d.type) ? d.type : 'nmck',
+      type: isDocumentKind(d.type) ? d.type : 'nmck',
       createdAt: d.createdAt,
     };
   }
@@ -173,9 +184,15 @@ class JSONDatabase {
     return {
       id: c.id,
       companyName,
+      shortName: trimString(c.shortName),
+      fullName: trimString(c.fullName),
       director: trimString(c.director),
+      directorGenitive: trimString(c.directorGenitive),
+      directorDative: trimString(c.directorDative),
       email: trimString(c.email),
+      phone: trimString(c.phone),
       legalAddress: trimString(c.legalAddress),
+      postalAddress: trimString(c.postalAddress),
       tags: normalizeTags(c.tags),
       createdAt,
       updatedAt,
@@ -270,8 +287,8 @@ class JSONDatabase {
     const trimmedName = name.trim().slice(0, MAX_DOCUMENT_NAME_LENGTH);
 
     const resolvedType = type === undefined || type === null || type === '' ? 'nmck' : type;
-    if (!isDocumentType(resolvedType)) {
-      throw new HttpError(400, 'Тип документа должен быть nmck или kp');
+    if (!isDocumentKind(resolvedType)) {
+      throw new HttpError(400, 'Тип документа должен быть nmck, kp или memo');
     }
 
     if (state === null || typeof state !== 'object') {
@@ -325,9 +342,15 @@ class JSONDatabase {
     const counterparty: StoredCounterparty = {
       id: this.getNextId('counterparties'),
       companyName: values.companyName,
+      shortName: values.shortName,
+      fullName: values.fullName,
       director: values.director,
+      directorGenitive: values.directorGenitive,
+      directorDative: values.directorDative,
       email: values.email,
+      phone: values.phone,
       legalAddress: values.legalAddress,
+      postalAddress: values.postalAddress,
       tags: values.tags,
       createdAt: now,
       updatedAt: now,
@@ -346,9 +369,15 @@ class JSONDatabase {
 
     const values = this.normalizeCounterpartyInput(input, counterparty);
     counterparty.companyName = values.companyName;
+    counterparty.shortName = values.shortName;
+    counterparty.fullName = values.fullName;
     counterparty.director = values.director;
+    counterparty.directorGenitive = values.directorGenitive;
+    counterparty.directorDative = values.directorDative;
     counterparty.email = values.email;
+    counterparty.phone = values.phone;
     counterparty.legalAddress = values.legalAddress;
+    counterparty.postalAddress = values.postalAddress;
     counterparty.tags = values.tags;
     counterparty.updatedAt = Date.now();
 
@@ -376,9 +405,15 @@ class JSONDatabase {
 
     return {
       companyName,
+      shortName: trimString(src.shortName, base?.shortName ?? EMPTY_COUNTERPARTY_FIELDS.shortName),
+      fullName: trimString(src.fullName, base?.fullName ?? EMPTY_COUNTERPARTY_FIELDS.fullName),
       director: trimString(src.director, base?.director ?? EMPTY_COUNTERPARTY_FIELDS.director),
+      directorGenitive: trimString(src.directorGenitive, base?.directorGenitive ?? EMPTY_COUNTERPARTY_FIELDS.directorGenitive),
+      directorDative: trimString(src.directorDative, base?.directorDative ?? EMPTY_COUNTERPARTY_FIELDS.directorDative),
       email: trimString(src.email, base?.email ?? EMPTY_COUNTERPARTY_FIELDS.email),
+      phone: trimString(src.phone, base?.phone ?? EMPTY_COUNTERPARTY_FIELDS.phone),
       legalAddress: trimString(src.legalAddress, base?.legalAddress ?? EMPTY_COUNTERPARTY_FIELDS.legalAddress),
+      postalAddress: trimString(src.postalAddress, base?.postalAddress ?? EMPTY_COUNTERPARTY_FIELDS.postalAddress),
       tags: Array.isArray(src.tags) ? normalizeTags(src.tags) : base?.tags ?? [],
     };
   }
