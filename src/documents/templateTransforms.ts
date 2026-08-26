@@ -1,11 +1,10 @@
-import type { Counterparty, Position } from '../types';
+import type { Counterparty, InflectedPhrase, Position } from '../types';
 import type { TemplateTransform } from './templateTypes';
 import {
-  declineFullName,
-  declinePosition,
+  declinePhrase,
   formatDateRu,
   formatSignatureName,
-  splitFullName,
+  resolveInflection,
   type RussianCase,
 } from '../utils/morphology';
 
@@ -13,7 +12,12 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isInflectedPhrase(value: unknown): value is Partial<InflectedPhrase> {
+  return isRecord(value) && typeof value.nominative === 'string';
+}
+
 export function compactString(value: unknown): string {
+  if (isInflectedPhrase(value)) return resolveInflection(value, 'nominative');
   return typeof value === 'string' ? value.trim() : '';
 }
 
@@ -72,6 +76,10 @@ function isCounterparty(value: unknown): value is Counterparty {
 }
 
 export function formatCounterpartyVendorInfo(counterparty: Counterparty): string {
+  const directorDative = resolveInflection({
+    nominative: counterparty.director,
+    dative: counterparty.directorDative,
+  }, 'dative');
   const addressLines = [
     counterparty.legalAddress,
     counterparty.postalAddress && counterparty.postalAddress !== counterparty.legalAddress
@@ -81,7 +89,7 @@ export function formatCounterpartyVendorInfo(counterparty: Counterparty): string
 
   return [
     counterparty.fullName || counterparty.companyName,
-    counterparty.directorDative || counterparty.director,
+    directorDative,
     ...addressLines,
     counterparty.email,
     counterparty.phone,
@@ -149,43 +157,21 @@ export function formatListItems(value: unknown): string {
     .join('\n');
 }
 
-function isLikelyFullName(value: string): boolean {
-  const parts = splitFullName(value);
-  const nameParts = [parts.lastName, parts.firstName, parts.patronymic];
-
-  return parts.extra.length === 0
-    && nameParts.every((part) => /^[А-ЯЁа-яё-]+$/.test(part))
-    && !value.includes('.');
-}
-
-function declineText(value: string, grammaticalCase: Exclude<RussianCase, 'nominative'>): string {
-  const normalized = compactString(value);
-  if (!normalized) return '';
-
-  if (value.includes('\n')) {
-    return value
-      .split('\n')
-      .map((line) => declineText(line, grammaticalCase))
-      .join('\n');
-  }
-
-  return isLikelyFullName(normalized)
-    ? declineFullName(normalized, grammaticalCase)
-    : declinePosition(normalized, grammaticalCase);
-}
-
 function applyCaseTransform(value: unknown, grammaticalCase: Exclude<RussianCase, 'nominative'>): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => applyCaseTransform(item, grammaticalCase));
   }
+  if (isInflectedPhrase(value)) {
+    return resolveInflection(value, grammaticalCase);
+  }
 
-  return typeof value === 'string' ? declineText(value, grammaticalCase) : value;
+  return typeof value === 'string' ? declinePhrase(value, grammaticalCase) : value;
 }
 
 function applyTransform(value: unknown, transform: TemplateTransform): unknown {
   switch (transform) {
     case 'trim':
-      return typeof value === 'string' ? value.trim() : value;
+      return typeof value === 'string' || isInflectedPhrase(value) ? compactString(value) : value;
     case 'joinLines':
       return joinLines(value);
     case 'formatCounterpartyVendorInfo':

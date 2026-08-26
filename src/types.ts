@@ -70,11 +70,18 @@ export interface Counterparty {
   updatedAt: number;
 }
 
+export interface InflectedPhrase {
+  nominative: string;
+  genitive: string;
+  dative: string;
+}
+
 export interface ServiceMemoData {
   purpose: string;
   subjectIntro: string;
   subjectTable: string;
   requester: string;
+  requesterNameInflection?: Pick<InflectedPhrase, 'nominative' | 'genitive'>;
   addressee: string;
   contractServiceHead: string;
   date: string;

@@ -54,11 +54,11 @@ Authorization: Bearer <jwt>
 
 ### `GET /api/user/settings`
 
-`{ customer, executorPosition, executorName, submissionEmail, contactPerson, contactPhone, contractServiceHeadPosition, contractServiceHeadName, defaultServiceConditions }` или пустые значения. `defaultServiceConditions` — массив строк (пункты типовых условий). Старое строковое значение с переносами строк нормализуется в список.
+`{ customer, executorPosition, executorName, executorNameGenitive, executorNameDative, submissionEmail, contactPerson, contactPersonGenitive, contactPersonDative, contactPhone, contractServiceHeadPosition, contractServiceHeadName, contractServiceHeadNameGenitive, contractServiceHeadNameDative, defaultServiceConditions }` или пустые значения. `defaultServiceConditions` — массив строк (пункты типовых условий). Старое строковое значение с переносами строк нормализуется в список.
 
 ### `POST /api/user/settings`
 
-В `user.settings` попадают только поля `customer`, `executorPosition`, `executorName`, `submissionEmail`, `contactPerson`, `contactPhone`, `contractServiceHeadPosition`, `contractServiceHeadName`, `defaultServiceConditions`. Остальное из body игнорируется, в том числе устаревшее `defaultServicePlace`. Эти поля подставляются в НМЦК, запрос КП и служебную записку через схемы автозаполнения.
+В `user.settings` попадают только поля `customer`, `executorPosition`, `executorName`, `executorNameGenitive`, `executorNameDative`, `submissionEmail`, `contactPerson`, `contactPersonGenitive`, `contactPersonDative`, `contactPhone`, `contractServiceHeadPosition`, `contractServiceHeadName`, `contractServiceHeadNameGenitive`, `contractServiceHeadNameDative`, `defaultServiceConditions`. Остальное из body игнорируется, в том числе устаревшее `defaultServicePlace`. Эти поля подставляются в НМЦК, запрос КП и служебную записку через схемы автозаполнения. Если для ФИО сохранены родительный или дательный падежи, документы используют их вместо автоматического склонения.
 
 ## История документов (JWT, свой user)
 

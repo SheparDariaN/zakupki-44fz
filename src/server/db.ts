@@ -28,11 +28,17 @@ const EMPTY_SETTINGS: UserSettings = {
   customer: '',
   executorPosition: '',
   executorName: '',
+  executorNameGenitive: '',
+  executorNameDative: '',
   submissionEmail: '',
   contactPerson: '',
+  contactPersonGenitive: '',
+  contactPersonDative: '',
   contactPhone: '',
   contractServiceHeadPosition: 'Руководитель контрактной службы',
   contractServiceHeadName: '',
+  contractServiceHeadNameGenitive: '',
+  contractServiceHeadNameDative: '',
   defaultServiceConditions: [],
 };
 
@@ -95,11 +101,20 @@ function pickSettings(input: unknown, base: UserSettings = EMPTY_SETTINGS): User
     customer: asString(src.customer, base.customer),
     executorPosition: asString(src.executorPosition, base.executorPosition),
     executorName: asString(src.executorName, base.executorName),
+    executorNameGenitive: asString(src.executorNameGenitive, base.executorNameGenitive),
+    executorNameDative: asString(src.executorNameDative, base.executorNameDative),
     submissionEmail: asString(src.submissionEmail, base.submissionEmail),
     contactPerson: asString(src.contactPerson, base.contactPerson),
+    contactPersonGenitive: asString(src.contactPersonGenitive, base.contactPersonGenitive),
+    contactPersonDative: asString(src.contactPersonDative, base.contactPersonDative),
     contactPhone: asString(src.contactPhone, base.contactPhone),
     contractServiceHeadPosition: asString(src.contractServiceHeadPosition, base.contractServiceHeadPosition),
     contractServiceHeadName: asString(src.contractServiceHeadName, base.contractServiceHeadName),
+    contractServiceHeadNameGenitive: asString(
+      src.contractServiceHeadNameGenitive,
+      base.contractServiceHeadNameGenitive
+    ),
+    contractServiceHeadNameDative: asString(src.contractServiceHeadNameDative, base.contractServiceHeadNameDative),
     defaultServiceConditions: asStringList(src.defaultServiceConditions, base.defaultServiceConditions),
   };
 }

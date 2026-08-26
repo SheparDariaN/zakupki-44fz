@@ -1,3 +1,5 @@
+import type { InflectedPhrase } from '../types';
+
 export type RussianCase = 'nominative' | 'genitive' | 'dative';
 
 export type FullNameParts = {
@@ -215,4 +217,72 @@ export function declinePosition(value: string, grammaticalCase: RussianCase): st
   }
 
   return [...words.slice(0, -1), declineSimpleNoun(words[words.length - 1], grammaticalCase)].join(' ');
+}
+
+function isLikelyFullName(value: string): boolean {
+  const parts = splitFullName(value);
+  const nameParts = [parts.lastName, parts.firstName, parts.patronymic];
+
+  return parts.extra.length === 0
+    && nameParts.every((part) => /^[А-ЯЁа-яё-]+$/.test(part))
+    && !value.includes('.');
+}
+
+export function declinePhrase(value: string, grammaticalCase: RussianCase): string {
+  if (value.includes('\n')) {
+    return value
+      .split('\n')
+      .map((line) => declinePhrase(line, grammaticalCase))
+      .join('\n');
+  }
+
+  const normalized = compact(value);
+  if (grammaticalCase === 'nominative' || !normalized) return normalized;
+
+  return isLikelyFullName(normalized)
+    ? declineFullName(normalized, grammaticalCase)
+    : declinePosition(normalized, grammaticalCase);
+}
+
+export function suggestInflection(value: string): InflectedPhrase {
+  const nominative = declinePhrase(value, 'nominative');
+
+  return {
+    nominative,
+    genitive: declinePhrase(nominative, 'genitive'),
+    dative: declinePhrase(nominative, 'dative'),
+  };
+}
+
+export function resolveInflection(
+  stored: Partial<InflectedPhrase> | null | undefined,
+  grammaticalCase: RussianCase
+): string {
+  const storedValue = compact(stored?.[grammaticalCase]);
+  if (storedValue) return storedValue;
+
+  const nominative = compact(stored?.nominative);
+  if (grammaticalCase === 'nominative' || !nominative) return nominative;
+
+  return declinePhrase(nominative, grammaticalCase);
+}
+
+export function syncInflection(
+  stored: Partial<InflectedPhrase> | null | undefined,
+  nextNominative: string
+): InflectedPhrase {
+  const normalizedNext = declinePhrase(nextNominative, 'nominative');
+  const normalizedCurrent = declinePhrase(stored?.nominative ?? '', 'nominative');
+
+  if (normalizedNext !== normalizedCurrent) {
+    return suggestInflection(normalizedNext);
+  }
+
+  const suggested = suggestInflection(normalizedNext);
+
+  return {
+    nominative: normalizedNext,
+    genitive: compact(stored?.genitive) || suggested.genitive,
+    dative: compact(stored?.dative) || suggested.dative,
+  };
 }

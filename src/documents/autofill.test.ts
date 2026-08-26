@@ -90,6 +90,15 @@ describe('autofill engine', () => {
     expect(result.changed.some((item) => item.reason === 'из выбранного контрагента')).toBe(true);
   });
 
+  it('формирует адресата КП с сохраненным дательным падежом руководителя или fallback-склонением', () => {
+    expect(formatCounterpartyVendorInfo(counterparty)).toContain('Директору Иванову И.И.');
+    expect(formatCounterpartyVendorInfo({
+      ...counterparty,
+      director: 'Иванов Иван Иванович',
+      directorDative: '',
+    })).toContain('Иванову Ивану Ивановичу');
+  });
+
   it('предлагает e-mail, контактные лица и подписанта КП из профиля', () => {
     const suggestions = resolveAutofill('kp', kpState(), {
       userSettings: {
@@ -211,6 +220,10 @@ describe('autofill engine', () => {
       excludeFieldKeys: ['addressee', 'contractServiceHead', 'memoContractServiceHead'],
     });
     expect(loaded.state.requester).toBe('Главный специалист\nИванова Анна Сергеевна');
+    expect(loaded.state.requesterNameInflection).toEqual({
+      nominative: 'Иванова Анна Сергеевна',
+      genitive: 'Ивановой Анны Сергеевны',
+    });
     expect(loaded.state.addressee).toBe('Руководителю контрактной службы');
     expect(loaded.state.contractServiceHead).toBe('');
 
@@ -221,7 +234,7 @@ describe('autofill engine', () => {
     expect(result.changed.some((item) => item.fieldKey === 'contractServiceHead')).toBe(true);
   });
 
-  it('применяет родительный падеж к ФИО и должности через transforms источника', () => {
+  it('применяет сохраненный родительный падеж к ФИО и склоняет должность через transforms источника', () => {
     const state: ServiceMemoData = {
       purpose: '',
       subjectIntro: '',
@@ -244,11 +257,12 @@ describe('autofill engine', () => {
         userSettings: {
           executorPosition: 'Главный специалист',
           executorName: 'Иванова Анна Сергеевна',
+          executorNameGenitive: 'Ивановой Анны Сергеевны (ручная форма)',
         },
       });
 
       expect(suggestions.find((item) => item.fieldKey === 'requester')?.value).toBe(
-        'Главного специалиста\nИвановой Анны Сергеевны'
+        'Главного специалиста\nИвановой Анны Сергеевны (ручная форма)'
       );
     } finally {
       source.transforms = originalTransforms;

@@ -69,4 +69,30 @@ describe('service memo requester cases', () => {
       right: 'Иванова Анна Сергеевна',
     });
   });
+
+  it('в шапке использует сохраненный родительный падеж ФИО составителя', () => {
+    expect(getServiceMemoHeaderLines({
+      purpose: '',
+      subjectIntro: '',
+      subjectTable: '',
+      requester: 'Главный специалист\nИванова Анна Сергеевна',
+      requesterNameInflection: {
+        nominative: 'Иванова Анна Сергеевна',
+        genitive: 'Ивановой Анны Сергеевны (ручная форма)',
+      },
+      addressee: 'Директору',
+      contractServiceHead: 'Петров Петр Петрович',
+      date: '2026-08-26',
+    })).toEqual([
+      'Директору',
+      'Петров Петр Петрович',
+      'Главного специалиста',
+      'Ивановой Анны Сергеевны (ручная форма)',
+    ]);
+
+    expect(formatServiceMemoHeaderRequester('Главный специалист\nПетров Петр Петрович', {
+      nominative: 'Иванова Анна Сергеевна',
+      genitive: 'Ивановой Анны Сергеевны (ручная форма)',
+    })).toBe('Главного специалиста\nПетрова Петра Петровича');
+  });
 });

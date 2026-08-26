@@ -3,6 +3,7 @@ import type {
   Counterparty,
   DocumentKind,
   DocumentStateByKind,
+  InflectedPhrase,
   KpDocxData,
   ServiceMemoData,
   Supplier,
@@ -16,6 +17,7 @@ import {
   isMeaningful,
   setPathValue,
 } from './templateTransforms';
+import { resolveInflection } from '../utils/morphology';
 
 export { formatCounterpartyVendorInfo } from './templateTransforms';
 
@@ -23,11 +25,17 @@ export type AutofillUserSettings = {
   customer?: string;
   executorPosition?: string;
   executorName?: string;
+  executorNameGenitive?: string;
+  executorNameDative?: string;
   submissionEmail?: string;
   contactPerson?: string;
+  contactPersonGenitive?: string;
+  contactPersonDative?: string;
   contactPhone?: string;
   contractServiceHeadPosition?: string;
   contractServiceHeadName?: string;
+  contractServiceHeadNameGenitive?: string;
+  contractServiceHeadNameDative?: string;
   defaultServiceConditions?: string[];
 };
 
@@ -38,6 +46,12 @@ export type AutofillContext = {
   currentPurchase?: Partial<AppState> & Record<string, unknown>;
   now?: Date;
 };
+
+const USER_SETTINGS_INFLECTION_FIELDS = {
+  executorName: ['executorNameGenitive', 'executorNameDative'],
+  contactPerson: ['contactPersonGenitive', 'contactPersonDative'],
+  contractServiceHeadName: ['contractServiceHeadNameGenitive', 'contractServiceHeadNameDative'],
+} satisfies Record<string, readonly [string, string]>;
 
 export type AutofillSuggestionUpdate = {
   fieldKey: string;
@@ -88,6 +102,48 @@ function buildSuppliers(counterparties: Counterparty[], existing: Supplier[] = [
   }));
 }
 
+function compactUserSetting(settings: AutofillUserSettings | undefined, path: string): string {
+  const value = getPathValue(settings, path);
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function getUserSettingsSourceValue(settings: AutofillUserSettings | undefined, path?: string): unknown {
+  if (!path) return settings;
+  if (path.includes(',')) {
+    return path.split(',').map((part) => getUserSettingsSourceValue(settings, part.trim()));
+  }
+
+  const inflectionFields = USER_SETTINGS_INFLECTION_FIELDS[path as keyof typeof USER_SETTINGS_INFLECTION_FIELDS];
+  if (inflectionFields) {
+    const [genitivePath, dativePath] = inflectionFields;
+    return {
+      nominative: compactUserSetting(settings, path),
+      genitive: compactUserSetting(settings, genitivePath),
+      dative: compactUserSetting(settings, dativePath),
+    } satisfies InflectedPhrase;
+  }
+
+  return getPathValue(settings, path);
+}
+
+function getLastMeaningfulLine(value: string): string {
+  const lines = value.split('\n').map((line) => line.trim()).filter(Boolean);
+  return lines[lines.length - 1] ?? '';
+}
+
+function withMemoRequesterInflection(state: ServiceMemoData, settings?: AutofillUserSettings): ServiceMemoData {
+  const executorName = compactUserSetting(settings, 'executorName');
+  if (!executorName || getLastMeaningfulLine(state.requester) !== executorName) return state;
+
+  return {
+    ...state,
+    requesterNameInflection: {
+      nominative: executorName,
+      genitive: resolveInflection(getUserSettingsSourceValue(settings, 'executorName') as InflectedPhrase, 'genitive'),
+    },
+  };
+}
+
 function resolveSourceValue(
   field: TemplateFieldSchema,
   source: AutofillSource,
@@ -96,7 +152,7 @@ function resolveSourceValue(
 ): unknown {
   switch (source.kind) {
     case 'userSettings':
-      return applyTemplateTransforms(getPathValue(context.userSettings, source.path), source.transforms);
+      return applyTemplateTransforms(getUserSettingsSourceValue(context.userSettings, source.path), source.transforms);
     case 'counterparty': {
       const selected = context.selectedCounterparties && context.selectedCounterparties.length > 0
         ? context.selectedCounterparties
@@ -294,7 +350,11 @@ export function applyAutofill<K extends DocumentKind>(
     }
   }
 
-  return { state: nextState, suggestions, changed };
+  const finalState = documentKind === 'memo'
+    ? withMemoRequesterInflection(nextState as ServiceMemoData, context.userSettings) as DocumentStateByKind[K]
+    : nextState;
+
+  return { state: finalState, suggestions, changed };
 }
 
 export function applyNmckAutofill(

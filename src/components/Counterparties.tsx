@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Pencil, Plus, RefreshCw, Search, Tag, Trash2, User, X } from 'lucide-react';
 import AppNav from './AppNav';
+import InflectedNameField from './InflectedNameField';
 import { apiFetch, readApiError } from '../utils/api';
 import type { Counterparty } from '../types';
 
@@ -317,38 +318,21 @@ export default function Counterparties() {
                     />
                   </div>
                 </div>
-                <div className="flex flex-col">
-                  <label className={labelClass}>Руководитель</label>
-                  <input
-                    type="text"
-                    className={inputClass}
-                    value={form.director}
-                    onChange={(event) => setForm((prev) => ({ ...prev, director: event.target.value }))}
-                    placeholder="Генеральный директор Иванов И.И."
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="flex flex-col">
-                    <label className={labelClass}>Руководитель в родительном падеже</label>
-                    <input
-                      type="text"
-                      className={inputClass}
-                      value={form.directorGenitive}
-                      onChange={(event) => setForm((prev) => ({ ...prev, directorGenitive: event.target.value }))}
-                      placeholder="Генерального директора Иванова И.И."
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <label className={labelClass}>Руководитель в дательном падеже</label>
-                    <input
-                      type="text"
-                      className={inputClass}
-                      value={form.directorDative}
-                      onChange={(event) => setForm((prev) => ({ ...prev, directorDative: event.target.value }))}
-                      placeholder="Генеральному директору Иванову И.И."
-                    />
-                  </div>
-                </div>
+                <InflectedNameField
+                  label="Руководитель"
+                  value={form.director}
+                  genitive={form.directorGenitive}
+                  dative={form.directorDative}
+                  onChange={(value) => setForm((prev) => ({
+                    ...prev,
+                    director: value.nominative,
+                    directorGenitive: value.genitive,
+                    directorDative: value.dative,
+                  }))}
+                  placeholder="Генеральный директор Иванов И.И."
+                  labelClassName={labelClass}
+                  inputClassName={inputClass}
+                />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="flex flex-col">
                     <label className={labelClass}>Email</label>

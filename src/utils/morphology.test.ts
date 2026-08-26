@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  declinePhrase,
   declineFullName,
   declinePosition,
   formatDateRu,
   formatInitials,
   formatSignatureName,
+  resolveInflection,
+  suggestInflection,
+  syncInflection,
   splitFullName,
 } from './morphology';
 
@@ -61,5 +65,58 @@ describe('morphology case transforms', () => {
   it('склоняет должности подписанта и директора контрагента без потери регистра', () => {
     expect(declinePosition('Начальник отдела', 'genitive')).toBe('Начальника отдела');
     expect(declinePosition('Директор', 'dative')).toBe('Директору');
+  });
+
+  it('склоняет фразу как ФИО или должность', () => {
+    expect(declinePhrase('Иванов Иван Иванович', 'dative')).toBe('Иванову Ивану Ивановичу');
+    expect(declinePhrase('Директор', 'dative')).toBe('Директору');
+    expect(declinePhrase('Директор\nИванов Иван Иванович', 'genitive')).toBe(
+      'Директора\nИванова Ивана Ивановича'
+    );
+  });
+});
+
+describe('morphology inflection helpers', () => {
+  it('предлагает формы для именительного падежа', () => {
+    expect(suggestInflection('  Иванов   Иван   Иванович  ')).toEqual({
+      nominative: 'Иванов Иван Иванович',
+      genitive: 'Иванова Ивана Ивановича',
+      dative: 'Иванову Ивану Ивановичу',
+    });
+  });
+
+  it('использует сохранённую форму, если она заполнена', () => {
+    expect(resolveInflection({
+      nominative: 'Иванов Иван Иванович',
+      genitive: 'Иванова Ивана Ивановича (ручная форма)',
+    }, 'genitive')).toBe('Иванова Ивана Ивановича (ручная форма)');
+    expect(resolveInflection({
+      nominative: 'Иванов Иван Иванович',
+      genitive: '',
+    }, 'genitive')).toBe('Иванова Ивана Ивановича');
+  });
+
+  it('сохраняет ручные формы, пока именительный падеж не изменился', () => {
+    expect(syncInflection({
+      nominative: 'Иванов Иван Иванович',
+      genitive: 'ручной родительный',
+      dative: 'ручной дательный',
+    }, ' Иванов Иван Иванович ')).toEqual({
+      nominative: 'Иванов Иван Иванович',
+      genitive: 'ручной родительный',
+      dative: 'ручной дательный',
+    });
+  });
+
+  it('пересчитывает формы при смене именительного падежа', () => {
+    expect(syncInflection({
+      nominative: 'Иванов Иван Иванович',
+      genitive: 'ручной родительный',
+      dative: 'ручной дательный',
+    }, 'Петров Петр Петрович')).toEqual({
+      nominative: 'Петров Петр Петрович',
+      genitive: 'Петрова Петра Петровича',
+      dative: 'Петрову Петру Петровичу',
+    });
   });
 });

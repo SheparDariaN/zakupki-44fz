@@ -32,7 +32,40 @@ function splitMemoLines(value: string) {
     .filter(Boolean);
 }
 
-export function formatServiceMemoHeaderRequester(requester: string) {
+function getMemoRequesterNameInflection(data: ServiceMemoData) {
+  const snapshot = data.requesterNameInflection;
+  const nominative = typeof snapshot?.nominative === "string" ? snapshot.nominative.trim() : "";
+  const genitive = typeof snapshot?.genitive === "string" ? snapshot.genitive.trim() : "";
+  if (!nominative || !genitive) return null;
+
+  return { nominative, genitive };
+}
+
+export function formatServiceMemoHeaderRequester(
+  requester: string,
+  requesterNameInflection?: ServiceMemoData["requesterNameInflection"]
+) {
+  const lines = splitMemoLines(requester);
+  const snapshot = getMemoRequesterNameInflection({
+    purpose: "",
+    subjectIntro: "",
+    subjectTable: "",
+    requester,
+    addressee: "",
+    contractServiceHead: "",
+    date: "",
+    requesterNameInflection,
+  });
+
+  if (snapshot && lines[lines.length - 1] === snapshot.nominative) {
+    const head = lines.slice(0, -1).join("\n");
+    const declinedHead = applyTemplateTransforms(head, ["toGenitiveCase"]);
+    return [
+      typeof declinedHead === "string" ? declinedHead : head,
+      snapshot.genitive,
+    ].filter(Boolean).join("\n");
+  }
+
   const declined = applyTemplateTransforms(requester, ["toGenitiveCase"]);
   return typeof declined === "string" ? declined : requester;
 }
@@ -46,7 +79,7 @@ export function getServiceMemoHeaderLines(data: ServiceMemoData) {
   return [
     getServiceMemoAddressee(data),
     ...splitMemoLines(data.contractServiceHead),
-    ...splitMemoLines(formatServiceMemoHeaderRequester(data.requester)),
+    ...splitMemoLines(formatServiceMemoHeaderRequester(data.requester, data.requesterNameInflection)),
   ];
 }
 

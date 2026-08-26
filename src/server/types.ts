@@ -15,11 +15,17 @@ export interface UserSettings {
   customer: string;
   executorPosition: string;
   executorName: string;
+  executorNameGenitive: string;
+  executorNameDative: string;
   submissionEmail: string;
   contactPerson: string;
+  contactPersonGenitive: string;
+  contactPersonDative: string;
   contactPhone: string;
   contractServiceHeadPosition: string;
   contractServiceHeadName: string;
+  contractServiceHeadNameGenitive: string;
+  contractServiceHeadNameDative: string;
   defaultServiceConditions: string[];
 }
 

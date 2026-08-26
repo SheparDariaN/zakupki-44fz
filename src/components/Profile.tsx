@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Download, Plus, Trash2 } from 'lucide-react';
 import AppNav from './AppNav';
+import InflectedNameField from './InflectedNameField';
 import { apiFetch, clearSession, getStoredUser, readApiError } from '../utils/api';
 import type { StoredDocument, UserSettings } from '../server/types';
 import { generateRegisteredDocument, getDocumentTitle } from '../documents/registry';
@@ -10,11 +11,17 @@ const emptySettings: UserSettings = {
   customer: '',
   executorPosition: '',
   executorName: '',
+  executorNameGenitive: '',
+  executorNameDative: '',
   submissionEmail: '',
   contactPerson: '',
+  contactPersonGenitive: '',
+  contactPersonDative: '',
   contactPhone: '',
   contractServiceHeadPosition: 'Руководитель контрактной службы',
   contractServiceHeadName: '',
+  contractServiceHeadNameGenitive: '',
+  contractServiceHeadNameDative: '',
   defaultServiceConditions: [],
 };
 
@@ -184,15 +191,18 @@ export default function Profile() {
                     onChange={e => setSettings({...settings, executorPosition: e.target.value})}
                   />
                 </div>
-                <div className="flex flex-col">
-                  <label className="text-[10px] uppercase font-bold mb-1 opacity-70">ФИО подписанта</label>
-                  <input
-                    type="text"
-                    className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
-                    value={settings.executorName || ''}
-                    onChange={e => setSettings({...settings, executorName: e.target.value})}
-                  />
-                </div>
+                <InflectedNameField
+                  label="ФИО подписанта"
+                  value={settings.executorName || ''}
+                  genitive={settings.executorNameGenitive || ''}
+                  dative={settings.executorNameDative || ''}
+                  onChange={(value) => setSettings({
+                    ...settings,
+                    executorName: value.nominative,
+                    executorNameGenitive: value.genitive,
+                    executorNameDative: value.dative,
+                  })}
+                />
                 <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
                   <p className="text-[10px] uppercase font-bold opacity-60">Руководитель контрактной службы</p>
                   <p className="text-[10px] opacity-60 -mt-2">Подставляется в запрос КП как подписант и в служебную записку.</p>
@@ -206,15 +216,18 @@ export default function Profile() {
                       placeholder="Руководитель контрактной службы"
                     />
                   </div>
-                  <div className="flex flex-col">
-                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">ФИО</label>
-                    <input
-                      type="text"
-                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
-                      value={settings.contractServiceHeadName || ''}
-                      onChange={e => setSettings({...settings, contractServiceHeadName: e.target.value})}
-                    />
-                  </div>
+                  <InflectedNameField
+                    label="ФИО"
+                    value={settings.contractServiceHeadName || ''}
+                    genitive={settings.contractServiceHeadNameGenitive || ''}
+                    dative={settings.contractServiceHeadNameDative || ''}
+                    onChange={(value) => setSettings({
+                      ...settings,
+                      contractServiceHeadName: value.nominative,
+                      contractServiceHeadNameGenitive: value.genitive,
+                      contractServiceHeadNameDative: value.dative,
+                    })}
+                  />
                 </div>
                 <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
                   <p className="text-[10px] uppercase font-bold opacity-60">Контакты для запроса КП</p>
@@ -228,15 +241,18 @@ export default function Profile() {
                       onChange={e => setSettings({...settings, submissionEmail: e.target.value})}
                     />
                   </div>
-                  <div className="flex flex-col">
-                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Контактное лицо</label>
-                    <input
-                      type="text"
-                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
-                      value={settings.contactPerson || ''}
-                      onChange={e => setSettings({...settings, contactPerson: e.target.value})}
-                    />
-                  </div>
+                  <InflectedNameField
+                    label="Контактное лицо"
+                    value={settings.contactPerson || ''}
+                    genitive={settings.contactPersonGenitive || ''}
+                    dative={settings.contactPersonDative || ''}
+                    onChange={(value) => setSettings({
+                      ...settings,
+                      contactPerson: value.nominative,
+                      contactPersonGenitive: value.genitive,
+                      contactPersonDative: value.dative,
+                    })}
+                  />
                   <div className="flex flex-col">
                     <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Телефон контактного лица</label>
                     <input
