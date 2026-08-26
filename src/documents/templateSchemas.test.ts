@@ -23,4 +23,17 @@ describe('DOCUMENT_TEMPLATE_SCHEMAS', () => {
     expect(batchFields.map((field) => field.fieldKey)).toEqual(['vendorInfos', 'vendorInfo']);
     expect(batchFields.every((field) => field.repeatable?.statePath === 'vendorInfos')).toBe(true);
   });
+
+  it('связывает контакты КП в одну группу и не подставляет подписанта из профиля', () => {
+    const contactFields = DOCUMENT_TEMPLATE_SCHEMAS.kp.fields.filter((field) => (
+      'linkedGroup' in field && field.linkedGroup?.key === 'kpContacts'
+    ));
+    const signerSources = DOCUMENT_TEMPLATE_SCHEMAS.kp.fields
+      .filter((field) => field.fieldKey === 'signerPosition' || field.fieldKey === 'signerName')
+      .flatMap((field) => field.sources.map((source) => source.kind));
+
+    expect(contactFields.map((field) => field.fieldKey)).toEqual(['submissionEmail', 'contactPerson']);
+    expect(contactFields.every((field) => field.linkedGroup?.label === 'Контакты для приема КП')).toBe(true);
+    expect(signerSources).toEqual(['documentState', 'documentState']);
+  });
 });

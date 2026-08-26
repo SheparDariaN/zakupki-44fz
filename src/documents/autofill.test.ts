@@ -3,6 +3,23 @@ import type { AppState, Counterparty, KpDocxData, ServiceMemoData } from '../typ
 import { applyAutofill, formatCounterpartyVendorInfo, resolveAutofill } from './autofill';
 import { DOCUMENT_TEMPLATE_SCHEMAS } from './templateSchemas';
 import type { TemplateTransform } from './templateTypes';
+import { formatContactPersonWithPhone } from './templateTransforms';
+
+function kpState(overrides: Partial<KpDocxData> = {}): KpDocxData {
+  return {
+    vendorInfos: [''],
+    subjectIntro: '',
+    subjectTable: '',
+    serviceConditions: [],
+    purchasePeriod: '',
+    submissionDeadline: '',
+    submissionEmail: '',
+    contactPerson: '',
+    signerPosition: '',
+    signerName: '',
+    ...overrides,
+  };
+}
 
 const counterparty: Counterparty = {
   id: 1,
@@ -52,17 +69,8 @@ describe('autofill engine', () => {
     expect(result.changed.map((item) => item.fieldKey)).toEqual(['customer', 'date', 'executorName']);
   });
 
-  it('формирует адресата КП из выбранного контрагента', () => {
-    const state: KpDocxData = {
-      vendorInfos: [''],
-      subjectIntro: '',
-      subjectTable: '',
-      serviceConditions: [],
-      purchasePeriod: '',
-      submissionDeadline: '',
-      submissionEmail: '',
-      contactPerson: '',
-    };
+  it('формирует адресата КП из выбранного контрагента и контакты из профиля', () => {
+    const state = kpState();
 
     const result = applyAutofill('kp', state, {
       selectedCounterparties: [counterparty],
@@ -70,26 +78,41 @@ describe('autofill engine', () => {
         executorName: 'Петров Петр Петрович',
         submissionEmail: 'kp@example.ru',
         contactPerson: 'Сидорова Сидора Сидоровна',
+        contactPhone: '8-384-244-26-28',
       },
     });
 
     expect(result.state.vendorInfos).toEqual([formatCounterpartyVendorInfo(counterparty)]);
     expect(result.state.submissionEmail).toBe('kp@example.ru');
-    expect(result.state.contactPerson).toBe('Сидорова Сидора Сидоровна');
+    expect(result.state.contactPerson).toBe('Сидорова Сидора Сидоровна, т. 8-384-244-26-28');
+    expect(result.state.signerPosition).toBe('');
+    expect(result.state.signerName).toBe('');
     expect(result.changed.some((item) => item.reason === 'из выбранного контрагента')).toBe(true);
   });
 
+  it('предлагает e-mail и контактные лица КП одним блоком из профиля', () => {
+    const suggestions = resolveAutofill('kp', kpState(), {
+      userSettings: {
+        submissionEmail: 'kp@example.ru',
+        contactPerson: 'Сидорова Сидора Сидоровна',
+        contactPhone: '8-384-244-26-28',
+        executorName: 'Петров Петр Петрович',
+        executorPosition: 'Директор',
+      },
+    });
+
+    const contacts = suggestions.find((item) => item.fieldKey === 'kpContacts');
+    expect(contacts?.label).toBe('Контакты для приема КП');
+    expect(contacts?.updates?.map((item) => item.fieldKey)).toEqual(['submissionEmail', 'contactPerson']);
+    expect(contacts?.updates?.map((item) => item.value)).toEqual([
+      'kp@example.ru',
+      'Сидорова Сидора Сидоровна, т. 8-384-244-26-28',
+    ]);
+    expect(suggestions.some((item) => item.fieldKey === 'signerPosition' || item.fieldKey === 'signerName')).toBe(false);
+  });
+
   it('собирает поля КП из текущих данных закупки', () => {
-    const state: KpDocxData = {
-      vendorInfos: ['Адресат'],
-      subjectIntro: '',
-      subjectTable: '',
-      serviceConditions: [],
-      purchasePeriod: '',
-      submissionDeadline: '',
-      submissionEmail: '',
-      contactPerson: '',
-    };
+    const state = kpState({ vendorInfos: ['Адресат'] });
 
     const suggestions = resolveAutofill('kp', state, {
       currentPurchase: {
@@ -202,16 +225,10 @@ describe('autofill engine', () => {
   });
 
   it('разделяет предложения для заполненных полей и перезапись по явному флагу', () => {
-    const state: KpDocxData = {
+    const state = kpState({
       vendorInfos: ['Адресат'],
       subjectIntro: 'Ручной предмет',
-      subjectTable: '',
-      serviceConditions: [],
-      purchasePeriod: '',
-      submissionDeadline: '',
-      submissionEmail: '',
-      contactPerson: '',
-    };
+    });
     const context = {
       currentPurchase: {
         requisites: {
@@ -241,5 +258,19 @@ describe('autofill engine', () => {
     const overwriteApply = applyAutofill('kp', state, context, { overwrite: true });
     expect(overwriteApply.state.subjectIntro).toBe('Предмет из НМЦК');
     expect(overwriteApply.changed.some((item) => item.fieldKey === 'subjectIntro')).toBe(true);
+  });
+
+  it('подставляет телефон контактного лица в формате «т. n» и не дублирует его', () => {
+    expect(formatContactPersonWithPhone(['Иванов Иван Иванович', '8-384-244-26-28'])).toBe(
+      'Иванов Иван Иванович, т. 8-384-244-26-28'
+    );
+    expect(formatContactPersonWithPhone(['Иванов Иван Иванович', 'т. 8-384-244-26-28'])).toBe(
+      'Иванов Иван Иванович, т. 8-384-244-26-28'
+    );
+    expect(formatContactPersonWithPhone(['Иванов Иван Иванович, т. 8-384-244-26-28', '8-384-244-26-28'])).toBe(
+      'Иванов Иван Иванович, т. 8-384-244-26-28'
+    );
+    expect(formatContactPersonWithPhone(['Иванов Иван Иванович', ''])).toBe('Иванов Иван Иванович');
+    expect(formatContactPersonWithPhone(['', '8-384-244-26-28'])).toBe('');
   });
 });

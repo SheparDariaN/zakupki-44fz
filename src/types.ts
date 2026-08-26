@@ -49,6 +49,8 @@ export interface KpDocxData {
   submissionDeadline: string;
   submissionEmail: string;
   contactPerson: string;
+  signerPosition: string;
+  signerName: string;
 }
 
 export interface Counterparty {

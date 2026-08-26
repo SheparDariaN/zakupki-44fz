@@ -34,6 +34,16 @@ function previewValue(value: unknown): string {
   return '';
 }
 
+function previewSuggestion(suggestion: AutofillSuggestion): string {
+  if (suggestion.updates && suggestion.updates.length > 0) {
+    return suggestion.updates
+      .map((item) => `${item.label}: ${previewValue(item.value)}`)
+      .filter((line) => !line.endsWith(': '))
+      .join('\n');
+  }
+  return previewValue(suggestion.value);
+}
+
 export default function AutofillPanel({
   title,
   description,
@@ -115,7 +125,7 @@ export default function AutofillPanel({
                 )}
               </div>
               <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug font-sans bg-black/5 p-2 max-h-24 overflow-hidden">
-                {previewValue(suggestion.value)}
+                {previewSuggestion(suggestion)}
               </pre>
             </div>
           ))}

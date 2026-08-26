@@ -334,7 +334,7 @@ const buildDocument = (data: KpDocxData, vendorInfo: string) => {
                     width: { size: 50, type: WidthType.PERCENTAGE },
                     children: [
                       new Paragraph({
-                        children: [t("И. о. директора", false, 24)],
+                        children: [t(data.signerPosition, false, 24)],
                         alignment: AlignmentType.LEFT
                       })
                     ]
@@ -343,7 +343,7 @@ const buildDocument = (data: KpDocxData, vendorInfo: string) => {
                     width: { size: 50, type: WidthType.PERCENTAGE },
                     children: [
                       new Paragraph({
-                        children: [t("С.Ш. Шайкомалов", false, 24)],
+                        children: [t(data.signerName, false, 24)],
                         alignment: AlignmentType.RIGHT
                       })
                     ]

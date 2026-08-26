@@ -54,6 +54,8 @@ describe('template normalization', () => {
       submissionDeadline: '  До 30.08.2026 г.  ',
       submissionEmail: '  kp@example.ru  ',
       contactPerson: '  Иванов Иван Иванович  ',
+      signerPosition: '  Руководитель контрактной службы  ',
+      signerName: '  Петров Петр Петрович  ',
     };
 
     const normalized = normalizeDocumentState('kp', state);
@@ -66,6 +68,8 @@ describe('template normalization', () => {
     expect(normalized.submissionDeadline).toBe('До 30.08.2026 г.');
     expect(normalized.submissionEmail).toBe('kp@example.ru');
     expect(normalized.contactPerson).toBe('Иванов Иван Иванович');
+    expect(normalized.signerPosition).toBe('Руководитель контрактной службы');
+    expect(normalized.signerName).toBe('Петров Петр Петрович');
   });
 
   it('нормализует служебную записку без искажения составных ФИО и должностей', () => {

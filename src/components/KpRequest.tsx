@@ -29,7 +29,9 @@ info@softmall.ru`
   purchasePeriod: `с 01.09.2026 г. по 30.09.2026 г.`,
   submissionDeadline: `До 17.08.2026 г.`,
   submissionEmail: `e-mail: citko@ako.ru`,
-  contactPerson: `Богданов Валентин Олегович, т. 8-384-244-26-28`
+  contactPerson: `Богданов Валентин Олегович, т. 8-384-244-26-28`,
+  signerPosition: '',
+  signerName: '',
 };
 
 export default function KpRequest() {
@@ -97,7 +99,10 @@ export default function KpRequest() {
         if (res.ok) {
           const settings = await res.json();
           setUserSettings(settings);
-          setData(prev => applyKpAutofill(prev, { userSettings: settings }).state);
+          setData(prev => applyKpAutofill(prev, { userSettings: settings }, {
+            overwrite: true,
+            sourceKinds: ['userSettings'],
+          }).state);
         }
       } catch (err) {
         console.error(err);
@@ -564,7 +569,7 @@ export default function KpRequest() {
                 />
               </div>
               <div className="flex flex-col col-span-2">
-                <label className={labelClass}>E-mail для приема КП</label>
+                <label className={labelClass}>Адрес электронной почты для предоставления сканированных копий писем</label>
                 <input
                   type="text"
                   className={fieldClass}
@@ -573,14 +578,36 @@ export default function KpRequest() {
                 />
               </div>
               <div className="flex flex-col col-span-2">
-                <label className={labelClass}>Контактное лицо</label>
+                <label className={labelClass}>Контактные лица</label>
                 <input
                   type="text"
                   className={fieldClass}
                   value={data.contactPerson}
                   onChange={e => handleChange('contactPerson', e.target.value)}
                 />
+                <p className="text-[10px] opacity-40 mt-1">Из профиля подставляются вместе: e-mail и ФИО с телефоном в формате «т. n».</p>
               </div>
+              <div className="flex flex-col">
+                <label className={labelClass}>Должность подписанта</label>
+                <input
+                  type="text"
+                  className={fieldClass}
+                  value={data.signerPosition}
+                  onChange={e => handleChange('signerPosition', e.target.value)}
+                  placeholder="Руководитель контрактной службы"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className={labelClass}>ФИО подписанта</label>
+                <input
+                  type="text"
+                  className={fieldClass}
+                  value={data.signerName}
+                  onChange={e => handleChange('signerName', e.target.value)}
+                  placeholder="И. И. Иванов"
+                />
+              </div>
+              <p className="col-span-2 text-[10px] opacity-40">Запрос подписывает руководитель контрактной службы; при отсутствии — директор или его заместители. Из профиля пока не подставляется.</p>
             </div>
           </section>
 

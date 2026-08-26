@@ -53,6 +53,8 @@ describe('DOCUMENT_REGISTRY', () => {
       submissionDeadline: '',
       submissionEmail: '',
       contactPerson: '',
+      signerPosition: '',
+      signerName: '',
     };
     const memoState: DocumentStateByKind['memo'] = {
       purpose: '',

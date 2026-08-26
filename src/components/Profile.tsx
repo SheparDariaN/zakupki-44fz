@@ -183,6 +183,7 @@ export default function Profile() {
                 </div>
                 <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
                   <p className="text-[10px] uppercase font-bold opacity-60">Контакты для запроса КП</p>
+                  <p className="text-[10px] opacity-60 -mt-2">В запросе КП e-mail и контактные лица заполняются вместе: к ФИО добавляется телефон в формате «т. n».</p>
                   <div className="flex flex-col">
                     <label className="text-[10px] uppercase font-bold mb-1 opacity-70">E-mail для приема КП</label>
                     <input

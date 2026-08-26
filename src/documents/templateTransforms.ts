@@ -126,6 +126,18 @@ function toListLines(value: unknown): string[] {
     .filter(Boolean);
 }
 
+export function formatContactPersonWithPhone(value: unknown): string {
+  const parts = Array.isArray(value) ? value : [value];
+  const name = compactString(parts[0]);
+  const phone = compactString(parts[1]).replace(/^т\.\s*/iu, '');
+
+  if (!name) return '';
+  if (!phone) return name;
+  if (/(?:^|,)\s*т\.\s*/u.test(name) || name.includes(phone)) return name;
+
+  return `${name}, т. ${phone}`;
+}
+
 export function formatListItems(value: unknown): string {
   const lines = toListLines(value)
     .map((line) => line.replace(/[;.]+$/u, '').trim())
@@ -191,6 +203,8 @@ function applyTransform(value: unknown, transform: TemplateTransform): unknown {
       return applyCaseTransform(value, 'dative');
     case 'formatListItems':
       return formatListItems(value);
+    case 'formatContactPersonWithPhone':
+      return formatContactPersonWithPhone(value);
     case 'formatMoney':
     case 'formatAmountInWords':
       return value;

@@ -28,6 +28,7 @@ export type TemplateTransform =
   | 'toGenitiveCase'
   | 'toDativeCase'
   | 'formatListItems'
+  | 'formatContactPersonWithPhone'
   | 'formatMoney'
   | 'formatAmountInWords';
 
@@ -43,6 +44,11 @@ export type RepeatableField = {
   statePath: string;
   itemLabel: string;
   minItems?: number;
+};
+
+export type LinkedFieldGroup = {
+  key: string;
+  label: string;
 };
 
 export type DocumentBatchScenarioStatus = 'implemented' | 'prepared';
@@ -72,6 +78,7 @@ export type TemplateFieldSchema<K extends DocumentKind = DocumentKind> = {
   description?: string;
   transforms?: readonly TemplateTransform[];
   repeatable?: RepeatableField;
+  linkedGroup?: LinkedFieldGroup;
   batchKey?: string;
 };
 

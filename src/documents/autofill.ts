@@ -38,6 +38,14 @@ export type AutofillContext = {
   now?: Date;
 };
 
+export type AutofillSuggestionUpdate = {
+  fieldKey: string;
+  label: string;
+  statePath: string;
+  currentValue: unknown;
+  value: unknown;
+};
+
 export type AutofillSuggestion<K extends DocumentKind = DocumentKind> = {
   documentKind: K;
   fieldKey: string;
@@ -49,6 +57,9 @@ export type AutofillSuggestion<K extends DocumentKind = DocumentKind> = {
   sourceLabel: string;
   reason: string;
   willOverwrite: boolean;
+  groupKey?: string;
+  groupLabel?: string;
+  updates?: AutofillSuggestionUpdate[];
 };
 
 export type ResolveAutofillOptions = {
@@ -132,6 +143,59 @@ function buildReason(source: AutofillSource): string {
   }
 }
 
+function mergeLinkedGroupSuggestions<K extends DocumentKind>(
+  suggestions: AutofillSuggestion<K>[]
+): AutofillSuggestion<K>[] {
+  const result: AutofillSuggestion<K>[] = [];
+  const emitted = new Set<string>();
+
+  for (const suggestion of suggestions) {
+    if (!suggestion.groupKey) {
+      result.push(suggestion);
+      continue;
+    }
+
+    const mergeKey = `${suggestion.groupKey}:${suggestion.sourceKind}`;
+    if (emitted.has(mergeKey)) continue;
+
+    const members = suggestions.filter(
+      (item) => item.groupKey === suggestion.groupKey && item.sourceKind === suggestion.sourceKind
+    );
+    emitted.add(mergeKey);
+
+    if (members.length === 1) {
+      result.push(members[0]);
+      continue;
+    }
+
+    result.push({
+      documentKind: members[0].documentKind,
+      fieldKey: suggestion.groupKey,
+      label: members[0].groupLabel || members[0].label,
+      statePath: members.map((item) => item.statePath).join(','),
+      currentValue: members.map((item) => item.currentValue),
+      value: members.map((item) => item.value),
+      sourceKind: members[0].sourceKind,
+      sourceLabel: members[0].sourceKind === 'userSettings'
+        ? 'Профиль пользователя'
+        : members[0].sourceLabel,
+      reason: members[0].reason,
+      willOverwrite: members.every((item) => item.willOverwrite),
+      groupKey: suggestion.groupKey,
+      groupLabel: members[0].groupLabel,
+      updates: members.map((item) => ({
+        fieldKey: item.fieldKey,
+        label: item.label,
+        statePath: item.statePath,
+        currentValue: item.currentValue,
+        value: item.value,
+      })),
+    });
+  }
+
+  return result;
+}
+
 export function resolveAutofill<K extends DocumentKind>(
   documentKind: K,
   state: DocumentStateByKind[K],
@@ -167,12 +231,14 @@ export function resolveAutofill<K extends DocumentKind>(
         sourceLabel: source.label,
         reason: buildReason(source),
         willOverwrite: filled,
+        groupKey: 'linkedGroup' in field ? field.linkedGroup?.key : undefined,
+        groupLabel: 'linkedGroup' in field ? field.linkedGroup?.label : undefined,
       });
       break;
     }
   }
 
-  return suggestions;
+  return mergeLinkedGroupSuggestions(suggestions);
 }
 
 export function applyAutofill<K extends DocumentKind>(
@@ -190,8 +256,29 @@ export function applyAutofill<K extends DocumentKind>(
 
   for (const suggestion of suggestions) {
     if (suggestion.willOverwrite && !options.overwrite) continue;
-    nextState = setPathValue(nextState, suggestion.statePath, suggestion.value);
-    changed.push(suggestion);
+
+    const members = suggestion.updates ?? [{
+      fieldKey: suggestion.fieldKey,
+      label: suggestion.label,
+      statePath: suggestion.statePath,
+      currentValue: suggestion.currentValue,
+      value: suggestion.value,
+    }];
+
+    for (const member of members) {
+      if (isMeaningful(member.currentValue) && !options.overwrite) continue;
+      nextState = setPathValue(nextState, member.statePath, member.value);
+      changed.push({
+        ...suggestion,
+        fieldKey: member.fieldKey,
+        label: member.label,
+        statePath: member.statePath,
+        currentValue: member.currentValue,
+        value: member.value,
+        willOverwrite: isMeaningful(member.currentValue),
+        updates: undefined,
+      });
+    }
   }
 
   return { state: nextState, suggestions, changed };

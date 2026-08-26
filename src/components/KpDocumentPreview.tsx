@@ -134,8 +134,8 @@ export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
       </p>
 
       <div className="flex justify-between items-end px-4 text-[12pt]">
-        <div>И. о. директора</div>
-        <div>С.Ш. Шайкомалов</div>
+        <div>{normalizedData.signerPosition}</div>
+        <div>{normalizedData.signerName}</div>
       </div>
     </div>
   );
