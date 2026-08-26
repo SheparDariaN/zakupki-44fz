@@ -102,6 +102,7 @@ export default function KpRequest() {
           setData(prev => applyKpAutofill(prev, { userSettings: settings }, {
             overwrite: true,
             sourceKinds: ['userSettings'],
+            fieldKeys: ['submissionEmail', 'contactPerson', 'kpContacts'],
           }).state);
         }
       } catch (err) {
@@ -519,6 +520,7 @@ export default function KpRequest() {
               </button>
             </div>
             <div className="p-3 flex flex-col gap-3">
+              <p className="text-[10px] opacity-40">Типовые условия из профиля подставляются как пункты этого раздела.</p>
               <div className="flex gap-2 items-start text-xs">
                 <span className="font-bold mt-1 shrink-0">1.</span>
                 <div className="flex-1 leading-relaxed bg-black/5 p-2 border border-[#141414]/20">
@@ -607,7 +609,7 @@ export default function KpRequest() {
                   placeholder="И. И. Иванов"
                 />
               </div>
-              <p className="col-span-2 text-[10px] opacity-40">Запрос подписывает руководитель контрактной службы; при отсутствии — директор или его заместители. Из профиля пока не подставляется.</p>
+              <p className="col-span-2 text-[10px] opacity-40">Запрос подписывает руководитель контрактной службы; при отсутствии — директор или его заместители. Данные из профиля только предлагаются в автозаполнении и не подставляются сами.</p>
             </div>
           </section>
 

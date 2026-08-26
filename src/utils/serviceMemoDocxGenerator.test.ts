@@ -37,6 +37,22 @@ describe('service memo requester cases', () => {
       subjectIntro: '',
       subjectTable: '',
       requester: 'Главный специалист\nИванов Иван Иванович',
+      addressee: 'Директору',
+      contractServiceHead: 'Петров Петр Петрович',
+      date: '2026-08-26',
+    })).toEqual([
+      'Директору',
+      'Петров Петр Петрович',
+      'Главного специалиста',
+      'Иванова Ивана Ивановича',
+    ]);
+
+    expect(getServiceMemoHeaderLines({
+      purpose: '',
+      subjectIntro: '',
+      subjectTable: '',
+      requester: 'Главный специалист\nИванов Иван Иванович',
+      addressee: '',
       contractServiceHead: 'Петров Петр Петрович',
       date: '2026-08-26',
     })).toEqual([

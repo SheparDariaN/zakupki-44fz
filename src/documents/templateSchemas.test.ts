@@ -24,16 +24,26 @@ describe('DOCUMENT_TEMPLATE_SCHEMAS', () => {
     expect(batchFields.every((field) => field.repeatable?.statePath === 'vendorInfos')).toBe(true);
   });
 
-  it('связывает контакты КП в одну группу и не подставляет подписанта из профиля', () => {
+  it('связывает контакты КП и подписанта в группы из профиля', () => {
     const contactFields = DOCUMENT_TEMPLATE_SCHEMAS.kp.fields.filter((field) => (
       'linkedGroup' in field && field.linkedGroup?.key === 'kpContacts'
     ));
-    const signerSources = DOCUMENT_TEMPLATE_SCHEMAS.kp.fields
-      .filter((field) => field.fieldKey === 'signerPosition' || field.fieldKey === 'signerName')
-      .flatMap((field) => field.sources.map((source) => source.kind));
+    const signerFields = DOCUMENT_TEMPLATE_SCHEMAS.kp.fields.filter((field) => (
+      'linkedGroup' in field && field.linkedGroup?.key === 'kpSigner'
+    ));
 
     expect(contactFields.map((field) => field.fieldKey)).toEqual(['submissionEmail', 'contactPerson']);
     expect(contactFields.every((field) => field.linkedGroup?.label === 'Контакты для приема КП')).toBe(true);
-    expect(signerSources).toEqual(['documentState', 'documentState']);
+    expect(signerFields.map((field) => field.fieldKey)).toEqual(['signerPosition', 'signerName']);
+    expect(signerFields.every((field) => field.sources.some((source) => source.kind === 'userSettings'))).toBe(true);
+  });
+
+  it('связывает адресата служебной записки и ФИО руководителя контрактной службы', () => {
+    const headFields = DOCUMENT_TEMPLATE_SCHEMAS.memo.fields.filter((field) => (
+      'linkedGroup' in field && field.linkedGroup?.key === 'memoContractServiceHead'
+    ));
+
+    expect(headFields.map((field) => field.fieldKey)).toEqual(['addressee', 'contractServiceHead']);
+    expect(headFields[0].sources.some((source) => source.transforms?.includes('toDativeCase'))).toBe(true);
   });
 });

@@ -79,6 +79,11 @@ export const KP_TEMPLATE = {
       valueType: 'list',
       required: true,
       sources: [
+        {
+          kind: 'userSettings',
+          label: 'Типовые условия из профиля',
+          path: 'defaultServiceConditions',
+        },
         { kind: 'currentPurchase', label: 'Условия текущей закупки', path: 'serviceConditions' },
         { kind: 'documentState', label: 'Пункты документа', path: 'serviceConditions' },
       ],
@@ -151,8 +156,15 @@ export const KP_TEMPLATE = {
       statePath: 'signerPosition',
       valueType: 'text',
       required: true,
-      description: 'Руководитель контрактной службы, при отсутствии — директор или его заместители. Указывается вручную, из профиля пока не подставляется.',
+      description: 'Руководитель контрактной службы, при отсутствии — директор или его заместители. Предлагается из профиля и подставляется только по кнопке автозаполнения.',
+      linkedGroup: { key: 'kpSigner', label: 'Подписант запроса КП' },
       sources: [
+        {
+          kind: 'userSettings',
+          label: 'Должность руководителя контрактной службы из профиля',
+          path: 'contractServiceHeadPosition',
+          transforms: ['trim'],
+        },
         { kind: 'documentState', label: 'Поле документа', path: 'signerPosition', transforms: ['trim'] },
       ],
     },
@@ -163,8 +175,15 @@ export const KP_TEMPLATE = {
       statePath: 'signerName',
       valueType: 'text',
       required: true,
-      description: 'Подписант запроса КП вводится вручную; автоподстановка из профиля будет добавлена позже.',
+      description: 'Подписант запроса КП предлагается из профиля: руководитель контрактной службы и его ФИО. Подставляется только по кнопке автозаполнения.',
+      linkedGroup: { key: 'kpSigner', label: 'Подписант запроса КП' },
       sources: [
+        {
+          kind: 'userSettings',
+          label: 'ФИО руководителя контрактной службы из профиля',
+          path: 'contractServiceHeadName',
+          transforms: ['trim'],
+        },
         { kind: 'documentState', label: 'Поле документа', path: 'signerName', transforms: ['trim'] },
       ],
     },

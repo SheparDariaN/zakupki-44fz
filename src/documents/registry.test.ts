@@ -61,6 +61,7 @@ describe('DOCUMENT_REGISTRY', () => {
       subjectIntro: 'Приобретение лицензий',
       subjectTable: '',
       requester: '',
+      addressee: '',
       contractServiceHead: '',
       date: '',
     };

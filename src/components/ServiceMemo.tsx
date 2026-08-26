@@ -10,6 +10,7 @@ import type { AutofillSourceKind } from '../documents/templateTypes';
 import AutofillPanel from './AutofillPanel';
 import { describeCurrentPurchase, loadCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeMemoState } from '../documents/templateNormalization';
+import { DEFAULT_MEMO_ADDRESSEE } from '../utils/serviceMemoDocxGenerator';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -18,6 +19,7 @@ const defaultValues: ServiceMemoData = {
   subjectIntro: 'приобретения лицензии программного продукта «АльфаДок» в следующей комплектации:',
   subjectTable: 'права на программу для ЭВМ «Альфа». Приложение «АльфаДок». Клиентская лицензия «Сегмент» на 1 год;\nправа на программу для ЭВМ «Альфа». Приложение «АльфаДок». Клиентская лицензия «Модуль ГИС» на 1 год.',
   requester: '',
+  addressee: DEFAULT_MEMO_ADDRESSEE,
   contractServiceHead: '',
   date: todayIso(),
 };
@@ -43,7 +45,9 @@ export default function ServiceMemo() {
         if (res.ok) {
           const settings = await res.json();
           setUserSettings(settings);
-          setData(prev => applyMemoAutofill(prev, { userSettings: settings }).state);
+          setData(prev => applyMemoAutofill(prev, { userSettings: settings }, {
+            excludeFieldKeys: ['addressee', 'contractServiceHead', 'memoContractServiceHead'],
+          }).state);
         }
       } catch (err) {
         console.error(err);
@@ -196,15 +200,26 @@ export default function ServiceMemo() {
             <h2 className="text-[11px] uppercase font-bold mb-4">Шапка документа</h2>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col">
-                <label className={labelClass}>Руководитель контрактной службы</label>
+                <label className={labelClass}>Адресат</label>
+                <input
+                  type="text"
+                  className={fieldClass}
+                  value={data.addressee}
+                  onChange={e => handleChange('addressee', e.target.value)}
+                  placeholder={DEFAULT_MEMO_ADDRESSEE}
+                />
+                <p className="text-[10px] opacity-40 mt-1">Первая строка шапки. Можно заменить, например на «Директору».</p>
+              </div>
+              <div className="flex flex-col">
+                <label className={labelClass}>ФИО руководителя контрактной службы</label>
                 <textarea
                   rows={3}
                   className={textareaClass}
                   value={data.contractServiceHead}
                   onChange={e => handleChange('contractServiceHead', e.target.value)}
-                  placeholder="Должность, ФИО"
+                  placeholder="Петров Петр Петрович"
                 />
-                <p className="text-[10px] opacity-40 mt-1">Указывается вручную, из профиля не подставляется.</p>
+                <p className="text-[10px] opacity-40 mt-1">Предлагается из профиля и подставляется только по кнопке автозаполнения.</p>
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Составитель запроса</label>

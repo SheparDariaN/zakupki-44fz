@@ -90,7 +90,7 @@ describe('autofill engine', () => {
     expect(result.changed.some((item) => item.reason === 'из выбранного контрагента')).toBe(true);
   });
 
-  it('предлагает e-mail и контактные лица КП одним блоком из профиля', () => {
+  it('предлагает e-mail, контактные лица и подписанта КП из профиля', () => {
     const suggestions = resolveAutofill('kp', kpState(), {
       userSettings: {
         submissionEmail: 'kp@example.ru',
@@ -98,6 +98,8 @@ describe('autofill engine', () => {
         contactPhone: '8-384-244-26-28',
         executorName: 'Петров Петр Петрович',
         executorPosition: 'Директор',
+        contractServiceHeadPosition: 'Руководитель контрактной службы',
+        contractServiceHeadName: 'Сидоров Сидор Сидорович',
       },
     });
 
@@ -108,7 +110,58 @@ describe('autofill engine', () => {
       'kp@example.ru',
       'Сидорова Сидора Сидоровна, т. 8-384-244-26-28',
     ]);
-    expect(suggestions.some((item) => item.fieldKey === 'signerPosition' || item.fieldKey === 'signerName')).toBe(false);
+
+    const signer = suggestions.find((item) => item.fieldKey === 'kpSigner');
+    expect(signer?.label).toBe('Подписант запроса КП');
+    expect(signer?.updates?.map((item) => item.fieldKey)).toEqual(['signerPosition', 'signerName']);
+    expect(signer?.updates?.map((item) => item.value)).toEqual([
+      'Руководитель контрактной службы',
+      'Сидоров Сидор Сидорович',
+    ]);
+  });
+
+  it('при загрузке КП не подставляет подписанта из профиля, только контакты', () => {
+    const state = kpState({
+      submissionEmail: 'demo@example.ru',
+      contactPerson: 'Демо',
+      signerPosition: '',
+      signerName: '',
+    });
+    const result = applyAutofill('kp', state, {
+      userSettings: {
+        submissionEmail: 'kp@example.ru',
+        contactPerson: 'Сидорова Сидора Сидоровна',
+        contactPhone: '8-384-244-26-28',
+        contractServiceHeadPosition: 'Руководитель контрактной службы',
+        contractServiceHeadName: 'Сидоров Сидор Сидорович',
+      },
+    }, {
+      overwrite: true,
+      sourceKinds: ['userSettings'],
+      fieldKeys: ['submissionEmail', 'contactPerson', 'kpContacts'],
+    });
+
+    expect(result.state.submissionEmail).toBe('kp@example.ru');
+    expect(result.state.contactPerson).toBe('Сидорова Сидора Сидоровна, т. 8-384-244-26-28');
+    expect(result.state.signerPosition).toBe('');
+    expect(result.state.signerName).toBe('');
+  });
+
+  it('подставляет типовые условия из профиля в сроки и состав услуг КП', () => {
+    const result = applyAutofill('kp', kpState(), {
+      userSettings: {
+        defaultServiceConditions: [
+          'Срок оказания услуг: 30 дней',
+          'Гарантия 12 месяцев',
+        ],
+      },
+    });
+
+    expect(result.state.serviceConditions).toEqual([
+      'Срок оказания услуг: 30 дней',
+      'Гарантия 12 месяцев',
+    ]);
+    expect(result.changed.some((item) => item.fieldKey === 'serviceConditions')).toBe(true);
   });
 
   it('собирает поля КП из текущих данных закупки', () => {
@@ -135,26 +188,37 @@ describe('autofill engine', () => {
     expect(suggestions.find((item) => item.fieldKey === 'subjectTable')?.value).toBe('Сертификат поддержки (ЕИ: шт, кол-во: 2)');
   });
 
-  it('подставляет составителя служебной записки из профиля и не подставляет руководителя контрактной службы', () => {
+  it('предлагает руководителя контрактной службы для служебной записки и не подставляет его без явного применения', () => {
     const state: ServiceMemoData = {
       purpose: '',
       subjectIntro: '',
       subjectTable: '',
       requester: '',
+      addressee: 'Руководителю контрактной службы',
       contractServiceHead: '',
       date: '2026-08-21',
     };
-
-    const result = applyAutofill('memo', state, {
+    const context = {
       userSettings: {
         executorPosition: 'Главный специалист',
         executorName: 'Иванова Анна Сергеевна',
+        contractServiceHeadPosition: 'Руководитель контрактной службы',
+        contractServiceHeadName: 'Петров Петр Петрович',
       },
-    });
+    };
 
+    const loaded = applyAutofill('memo', state, context, {
+      excludeFieldKeys: ['addressee', 'contractServiceHead', 'memoContractServiceHead'],
+    });
+    expect(loaded.state.requester).toBe('Главный специалист\nИванова Анна Сергеевна');
+    expect(loaded.state.addressee).toBe('Руководителю контрактной службы');
+    expect(loaded.state.contractServiceHead).toBe('');
+
+    const result = applyAutofill('memo', state, context);
     expect(result.state.requester).toBe('Главный специалист\nИванова Анна Сергеевна');
-    expect(result.state.contractServiceHead).toBe('');
-    expect(result.changed.some((item) => item.fieldKey === 'contractServiceHead')).toBe(false);
+    expect(result.state.addressee).toBe('Руководителю контрактной службы');
+    expect(result.state.contractServiceHead).toBe('Петров Петр Петрович');
+    expect(result.changed.some((item) => item.fieldKey === 'contractServiceHead')).toBe(true);
   });
 
   it('применяет родительный падеж к ФИО и должности через transforms источника', () => {
@@ -163,6 +227,7 @@ describe('autofill engine', () => {
       subjectIntro: '',
       subjectTable: '',
       requester: '',
+      addressee: '',
       contractServiceHead: '',
       date: '',
     };
@@ -196,6 +261,7 @@ describe('autofill engine', () => {
       subjectIntro: '',
       subjectTable: '',
       requester: '',
+      addressee: '',
       contractServiceHead: '',
       date: '',
     };

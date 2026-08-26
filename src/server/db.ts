@@ -31,8 +31,9 @@ const EMPTY_SETTINGS: UserSettings = {
   submissionEmail: '',
   contactPerson: '',
   contactPhone: '',
-  defaultServicePlace: '',
-  defaultServiceConditions: '',
+  contractServiceHeadPosition: 'Руководитель контрактной службы',
+  contractServiceHeadName: '',
+  defaultServiceConditions: [],
 };
 
 const EMPTY_COUNTERPARTY_FIELDS = {
@@ -73,6 +74,21 @@ function normalizeTags(value: unknown): string[] {
   return tags;
 }
 
+function asStringList(value: unknown, fallback: string[]): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return fallback;
+}
+
 function pickSettings(input: unknown, base: UserSettings = EMPTY_SETTINGS): UserSettings {
   const src = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
   return {
@@ -82,8 +98,9 @@ function pickSettings(input: unknown, base: UserSettings = EMPTY_SETTINGS): User
     submissionEmail: asString(src.submissionEmail, base.submissionEmail),
     contactPerson: asString(src.contactPerson, base.contactPerson),
     contactPhone: asString(src.contactPhone, base.contactPhone),
-    defaultServicePlace: asString(src.defaultServicePlace, base.defaultServicePlace),
-    defaultServiceConditions: asString(src.defaultServiceConditions, base.defaultServiceConditions),
+    contractServiceHeadPosition: asString(src.contractServiceHeadPosition, base.contractServiceHeadPosition),
+    contractServiceHeadName: asString(src.contractServiceHeadName, base.contractServiceHeadName),
+    defaultServiceConditions: asStringList(src.defaultServiceConditions, base.defaultServiceConditions),
   };
 }
 

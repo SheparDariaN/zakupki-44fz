@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download } from 'lucide-react';
+import { Download, Plus, Trash2 } from 'lucide-react';
 import AppNav from './AppNav';
 import { apiFetch, clearSession, getStoredUser, readApiError } from '../utils/api';
 import type { StoredDocument, UserSettings } from '../server/types';
@@ -13,8 +13,9 @@ const emptySettings: UserSettings = {
   submissionEmail: '',
   contactPerson: '',
   contactPhone: '',
-  defaultServicePlace: '',
-  defaultServiceConditions: '',
+  contractServiceHeadPosition: 'Руководитель контрактной службы',
+  contractServiceHeadName: '',
+  defaultServiceConditions: [],
 };
 
 export default function Profile() {
@@ -48,7 +49,13 @@ export default function Profile() {
       const res = await apiFetch('/api/user/settings');
       if (res.ok) {
         const data: UserSettings = await res.json();
-        setSettings({ ...emptySettings, ...data });
+        setSettings({
+          ...emptySettings,
+          ...data,
+          defaultServiceConditions: Array.isArray(data.defaultServiceConditions)
+            ? data.defaultServiceConditions
+            : [],
+        });
       }
     } catch (err) {
       console.error(err);
@@ -70,13 +77,18 @@ export default function Profile() {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage('');
+    const payload: UserSettings = {
+      ...settings,
+      defaultServiceConditions: settings.defaultServiceConditions.map((item) => item.trim()).filter(Boolean),
+    };
     try {
       const res = await apiFetch('/api/user/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
+        setSettings(payload);
         showMessage('Настройки успешно сохранены!');
       } else {
         showMessage(await readApiError(res, 'Ошибка сохранения.'), true);
@@ -124,7 +136,7 @@ export default function Profile() {
   };
 
   return (
-    <div className="min-h-screen bg-[#E4E3E0] p-8 font-sans">
+    <div className="h-screen overflow-y-auto scroll-area bg-[#E4E3E0] p-8 font-sans text-[#141414]">
       <div className="max-w-5xl mx-auto">
         <header className="flex justify-between items-center mb-8 border-b border-[#141414] pb-4 gap-4">
           <div className="min-w-0">
@@ -182,6 +194,29 @@ export default function Profile() {
                   />
                 </div>
                 <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
+                  <p className="text-[10px] uppercase font-bold opacity-60">Руководитель контрактной службы</p>
+                  <p className="text-[10px] opacity-60 -mt-2">Подставляется в запрос КП как подписант и в служебную записку.</p>
+                  <div className="flex flex-col">
+                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Должность</label>
+                    <input
+                      type="text"
+                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                      value={settings.contractServiceHeadPosition || ''}
+                      onChange={e => setSettings({...settings, contractServiceHeadPosition: e.target.value})}
+                      placeholder="Руководитель контрактной службы"
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">ФИО</label>
+                    <input
+                      type="text"
+                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                      value={settings.contractServiceHeadName || ''}
+                      onChange={e => setSettings({...settings, contractServiceHeadName: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
                   <p className="text-[10px] uppercase font-bold opacity-60">Контакты для запроса КП</p>
                   <p className="text-[10px] opacity-60 -mt-2">В запросе КП e-mail и контактные лица заполняются вместе: к ФИО добавляется телефон в формате «т. n».</p>
                   <div className="flex flex-col">
@@ -213,25 +248,54 @@ export default function Profile() {
                   </div>
                 </div>
                 <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
-                  <p className="text-[10px] uppercase font-bold opacity-60">Типовые условия</p>
-                  <div className="flex flex-col">
-                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Место оказания услуг</label>
-                    <textarea
-                      rows={3}
-                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black resize-none"
-                      value={settings.defaultServicePlace || ''}
-                      onChange={e => setSettings({...settings, defaultServicePlace: e.target.value})}
-                    />
+                  <div className="flex justify-between items-center gap-2">
+                    <div>
+                      <p className="text-[10px] uppercase font-bold opacity-60">Типовые условия</p>
+                      <p className="text-[10px] opacity-60 mt-1">Подставляются в запрос КП в раздел «Сроки и состав услуг».</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSettings(prev => ({
+                        ...prev,
+                        defaultServiceConditions: [...prev.defaultServiceConditions, ''],
+                      }))}
+                      className="text-[10px] font-bold flex items-center gap-1 hover:text-blue-600 transition-colors shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Добавить пункт
+                    </button>
                   </div>
-                  <div className="flex flex-col">
-                    <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Типовые условия</label>
-                    <textarea
-                      rows={4}
-                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black resize-none"
-                      value={settings.defaultServiceConditions || ''}
-                      onChange={e => setSettings({...settings, defaultServiceConditions: e.target.value})}
-                    />
-                  </div>
+                  {settings.defaultServiceConditions.length === 0 ? (
+                    <p className="text-[10px] opacity-50 border border-dashed border-[#141414] px-3 py-4 text-center">
+                      Нет пунктов. Добавьте типовое условие.
+                    </p>
+                  ) : (
+                    settings.defaultServiceConditions.map((condition, index) => (
+                      <div key={index} className="flex gap-2 items-start relative group">
+                        <span className="font-bold mt-2 text-xs shrink-0">{index + 1}.</span>
+                        <textarea
+                          rows={3}
+                          className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black resize-none flex-1"
+                          value={condition}
+                          onChange={e => {
+                            const next = [...settings.defaultServiceConditions];
+                            next[index] = e.target.value;
+                            setSettings({ ...settings, defaultServiceConditions: next });
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSettings(prev => ({
+                            ...prev,
+                            defaultServiceConditions: prev.defaultServiceConditions.filter((_, i) => i !== index),
+                          }))}
+                          className="absolute top-2 right-2 text-black/30 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100"
+                          title="Удалить пункт"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
                 <button type="submit" className="mt-2 bg-[#141414] text-white py-2 text-sm font-bold uppercase hover:bg-black/80 transition-colors">
                   Сохранить

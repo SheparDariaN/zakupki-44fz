@@ -6,13 +6,39 @@ export const MEMO_TEMPLATE = {
   fields: [
     {
       documentKind: 'memo',
+      fieldKey: 'addressee',
+      label: 'Адресат',
+      statePath: 'addressee',
+      valueType: 'text',
+      required: true,
+      description: 'Первая строка шапки. По умолчанию «Руководителю контрактной службы», можно изменить.',
+      linkedGroup: { key: 'memoContractServiceHead', label: 'Руководитель контрактной службы' },
+      sources: [
+        {
+          kind: 'userSettings',
+          label: 'Должность руководителя контрактной службы из профиля',
+          path: 'contractServiceHeadPosition',
+          transforms: ['toDativeCase', 'trim'],
+        },
+        { kind: 'documentState', label: 'Поле документа', path: 'addressee', transforms: ['trim'] },
+      ],
+    },
+    {
+      documentKind: 'memo',
       fieldKey: 'contractServiceHead',
-      label: 'Руководитель контрактной службы',
+      label: 'ФИО руководителя контрактной службы',
       statePath: 'contractServiceHead',
       valueType: 'multilineText',
       required: true,
-      description: 'Руководитель контрактной службы указывается вручную и не подставляется из профиля пользователя.',
+      description: 'Предлагается из профиля и подставляется только по кнопке автозаполнения.',
+      linkedGroup: { key: 'memoContractServiceHead', label: 'Руководитель контрактной службы' },
       sources: [
+        {
+          kind: 'userSettings',
+          label: 'ФИО руководителя контрактной службы из профиля',
+          path: 'contractServiceHeadName',
+          transforms: ['trim'],
+        },
         { kind: 'documentState', label: 'Поле документа', path: 'contractServiceHead', transforms: ['trim'] },
       ],
       transforms: ['formatSignatureName'],

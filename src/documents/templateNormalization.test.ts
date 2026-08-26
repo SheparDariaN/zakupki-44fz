@@ -78,7 +78,8 @@ describe('template normalization', () => {
       subjectIntro: '  приобретения лицензии:  ',
       subjectTable: '  Позиция 1\n- Позиция 2  ',
       requester: '  Главный специалист\nИванова Анна Сергеевна  ',
-      contractServiceHead: '  Руководитель контрактной службы\nПетров Петр Петрович  ',
+      addressee: '  Директору  ',
+      contractServiceHead: '  Петров Петр Петрович  ',
       date: '2026-08-26',
     };
 
@@ -89,7 +90,8 @@ describe('template normalization', () => {
       subjectIntro: 'приобретения лицензии:',
       subjectTable: 'Позиция 1\n- Позиция 2',
       requester: 'Главный специалист\nИванова Анна Сергеевна',
-      contractServiceHead: 'Руководитель контрактной службы\nПетров Петр Петрович',
+      addressee: 'Директору',
+      contractServiceHead: 'Петров Петр Петрович',
       date: '26.08.2026',
     });
   });

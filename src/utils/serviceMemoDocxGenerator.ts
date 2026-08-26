@@ -19,6 +19,8 @@ import { formatDateRu } from "./morphology";
 /** 14 см от левого края листа минус левое поле 3 см. */
 const HEADER_INDENT_TWIPS = 14 * 567 - 1701;
 
+export const DEFAULT_MEMO_ADDRESSEE = "Руководителю контрактной службы";
+
 export function formatServiceMemoDate(value: string) {
   return formatDateRu(value);
 }
@@ -35,9 +37,14 @@ export function formatServiceMemoHeaderRequester(requester: string) {
   return typeof declined === "string" ? declined : requester;
 }
 
+export function getServiceMemoAddressee(data: ServiceMemoData) {
+  const addressee = typeof data.addressee === "string" ? data.addressee.trim() : "";
+  return addressee || DEFAULT_MEMO_ADDRESSEE;
+}
+
 export function getServiceMemoHeaderLines(data: ServiceMemoData) {
   return [
-    "Руководителю контрактной службы",
+    getServiceMemoAddressee(data),
     ...splitMemoLines(data.contractServiceHead),
     ...splitMemoLines(formatServiceMemoHeaderRequester(data.requester)),
   ];

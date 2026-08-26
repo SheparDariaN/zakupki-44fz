@@ -18,8 +18,9 @@ export interface UserSettings {
   submissionEmail: string;
   contactPerson: string;
   contactPhone: string;
-  defaultServicePlace: string;
-  defaultServiceConditions: string;
+  contractServiceHeadPosition: string;
+  contractServiceHeadName: string;
+  defaultServiceConditions: string[];
 }
 
 export interface StoredUser {

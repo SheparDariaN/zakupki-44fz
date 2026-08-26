@@ -26,8 +26,9 @@ export type AutofillUserSettings = {
   submissionEmail?: string;
   contactPerson?: string;
   contactPhone?: string;
-  defaultServicePlace?: string;
-  defaultServiceConditions?: string;
+  contractServiceHeadPosition?: string;
+  contractServiceHeadName?: string;
+  defaultServiceConditions?: string[];
 };
 
 export type AutofillContext = {
@@ -65,6 +66,8 @@ export type AutofillSuggestion<K extends DocumentKind = DocumentKind> = {
 export type ResolveAutofillOptions = {
   includeFilled?: boolean;
   sourceKinds?: readonly AutofillSourceKind[];
+  fieldKeys?: readonly string[];
+  excludeFieldKeys?: readonly string[];
 };
 
 export type ApplyAutofillOptions = ResolveAutofillOptions & {
@@ -143,6 +146,12 @@ function buildReason(source: AutofillSource): string {
   }
 }
 
+function fieldMatchesKeys(field: TemplateFieldSchema, keys?: readonly string[]): boolean {
+  if (!keys || keys.length === 0) return false;
+  return keys.includes(field.fieldKey)
+    || Boolean(field.linkedGroup && keys.includes(field.linkedGroup.key));
+}
+
 function mergeLinkedGroupSuggestions<K extends DocumentKind>(
   suggestions: AutofillSuggestion<K>[]
 ): AutofillSuggestion<K>[] {
@@ -208,6 +217,8 @@ export function resolveAutofill<K extends DocumentKind>(
 
   for (const field of schema.fields) {
     if (field.statePath.includes('[]')) continue;
+    if (options.fieldKeys && !fieldMatchesKeys(field, options.fieldKeys)) continue;
+    if (fieldMatchesKeys(field, options.excludeFieldKeys)) continue;
 
     const currentValue = getPathValue(state, field.statePath);
     const filled = isMeaningful(currentValue);
@@ -250,6 +261,8 @@ export function applyAutofill<K extends DocumentKind>(
   const suggestions = resolveAutofill(documentKind, state, context, {
     includeFilled: options.includeFilled ?? options.overwrite,
     sourceKinds: options.sourceKinds,
+    fieldKeys: options.fieldKeys,
+    excludeFieldKeys: options.excludeFieldKeys,
   });
   let nextState = state;
   const changed: AutofillSuggestion<K>[] = [];

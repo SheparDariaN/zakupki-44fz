@@ -93,16 +93,17 @@ describe('JSONDatabase', () => {
       submissionEmail: '',
       contactPerson: '',
       contactPhone: '',
-      defaultServicePlace: '',
-      defaultServiceConditions: '',
+      contractServiceHeadPosition: 'Руководитель контрактной службы',
+      contractServiceHeadName: '',
+      defaultServiceConditions: [],
     });
 
     await expect(db.updateUserSettings(1, {
       submissionEmail: 'kp@example.test',
       contactPerson: 'Петров Петр Петрович',
       contactPhone: '+7 000 000-00-00',
-      defaultServicePlace: 'г. Кемерово',
-      defaultServiceConditions: 'Срок оказания услуг: 30 дней',
+      contractServiceHeadName: 'Сидоров Сидор Сидорович',
+      defaultServiceConditions: ['Срок оказания услуг: 30 дней', '  ', 'Гарантия 12 месяцев'],
       ignored: 'не сохраняется',
     })).resolves.toEqual({
       customer: 'ГКУ «ЦИТ Кузбасса»',
@@ -111,9 +112,35 @@ describe('JSONDatabase', () => {
       submissionEmail: 'kp@example.test',
       contactPerson: 'Петров Петр Петрович',
       contactPhone: '+7 000 000-00-00',
-      defaultServicePlace: 'г. Кемерово',
-      defaultServiceConditions: 'Срок оказания услуг: 30 дней',
+      contractServiceHeadPosition: 'Руководитель контрактной службы',
+      contractServiceHeadName: 'Сидоров Сидор Сидорович',
+      defaultServiceConditions: ['Срок оказания услуг: 30 дней', 'Гарантия 12 месяцев'],
     });
+  });
+
+  it('преобразует старые строковые типовые условия профиля в список пунктов', async () => {
+    const db = await loadDb({
+      users: [
+        {
+          id: 1,
+          username: 'user',
+          password: 'hash',
+          role: 'user',
+          settings: {
+            defaultServicePlace: 'г. Кемерово',
+            defaultServiceConditions: 'Срок оказания услуг: 30 дней\nГарантия 12 месяцев',
+          },
+          mustChangePassword: false,
+        },
+      ],
+      documents: [],
+      counterparties: [],
+    });
+
+    expect(await db.getUserSettings(1)).toMatchObject({
+      defaultServiceConditions: ['Срок оказания услуг: 30 дней', 'Гарантия 12 месяцев'],
+    });
+    expect(await db.getUserSettings(1)).not.toHaveProperty('defaultServicePlace');
   });
 
   it('нормализует контрагентов из файла БД', async () => {

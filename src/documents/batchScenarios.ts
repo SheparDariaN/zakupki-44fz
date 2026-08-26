@@ -39,7 +39,7 @@ export const MEMO_BATCH_SCENARIOS = [
     status: 'prepared',
     batchKey: 'memoRecipients',
     variantLabel: 'Вариант служебной записки',
-    varyingFields: ['contractServiceHead', 'requester', 'date'],
+    varyingFields: ['addressee', 'contractServiceHead', 'requester', 'date'],
     singleFileName: 'Служебная_записка_на_закупку.docx',
     zipFileName: 'Служебные_записки.zip',
   },

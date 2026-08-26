@@ -75,6 +75,7 @@ export interface ServiceMemoData {
   subjectIntro: string;
   subjectTable: string;
   requester: string;
+  addressee: string;
   contractServiceHead: string;
   date: string;
 }
