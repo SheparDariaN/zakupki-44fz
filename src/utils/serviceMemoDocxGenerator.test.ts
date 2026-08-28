@@ -3,6 +3,7 @@ import { formatListItems } from '../documents/templateTransforms';
 import {
   formatServiceMemoHeaderRequester,
   getServiceMemoHeaderLines,
+  getServiceMemoSignatureBlock,
   getServiceMemoSignatureParts,
   getServiceMemoSubjectItems,
 } from './serviceMemoDocxGenerator';
@@ -71,6 +72,21 @@ describe('service memo requester cases', () => {
   it('в подписи оставляет составителя в именительном падеже', () => {
     expect(getServiceMemoSignatureParts('Главный специалист\nИванова Анна Сергеевна')).toEqual({
       left: 'Главный специалист',
+      right: 'Иванова Анна Сергеевна',
+    });
+  });
+
+  it('ставит дату в одну колонку с должностью подписанта', () => {
+    expect(getServiceMemoSignatureBlock({
+      purpose: '',
+      subjectIntro: '',
+      subjectTable: '',
+      requester: 'Главный специалист\nИванова Анна Сергеевна',
+      addressee: 'Директору',
+      contractServiceHead: 'Петров Петр Петрович',
+      date: '2026-08-26',
+    })).toEqual({
+      leftLines: ['Главный специалист', '26.08.2026'],
       right: 'Иванова Анна Сергеевна',
     });
   });

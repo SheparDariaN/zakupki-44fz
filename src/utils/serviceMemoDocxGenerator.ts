@@ -93,11 +93,20 @@ export function getServiceMemoSignatureParts(requester: string) {
   };
 }
 
+export function getServiceMemoSignatureBlock(data: ServiceMemoData) {
+  const parts = getServiceMemoSignatureParts(data.requester);
+  const date = formatServiceMemoDate(data.date);
+  return {
+    leftLines: [...splitMemoLines(parts.left), ...(date ? [date] : [])],
+    right: parts.right,
+  };
+}
+
 const buildServiceMemoDocument = (data: ServiceMemoData) => {
   const TIMES = "Times New Roman";
   const bodyText = getServiceMemoBodyText(data);
   const subjectItems = getServiceMemoSubjectItems(data.subjectTable);
-  const signature = getServiceMemoSignatureParts(data.requester);
+  const signature = getServiceMemoSignatureBlock(data);
 
   const t = (text: string, bold = false, size = 24) =>
     new TextRun({ text, font: TIMES, bold, size });
@@ -118,7 +127,7 @@ const buildServiceMemoDocument = (data: ServiceMemoData) => {
     new TableCell({
       width: { size: width, type: WidthType.PERCENTAGE },
       verticalAlign: VerticalAlign.TOP,
-      margins: { top: 80, bottom: 80, left: 100, right: 100 },
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
       children,
     });
 
@@ -139,10 +148,10 @@ const buildServiceMemoDocument = (data: ServiceMemoData) => {
         },
         children: [
           ...headerLines.map(
-            (line, index) =>
+            (line) =>
               new Paragraph({
                 indent: { left: HEADER_INDENT_TWIPS },
-                children: [t(line, index === 0, 24)],
+                children: [t(line, false, 24)],
                 alignment: AlignmentType.LEFT,
                 spacing: { after: 80 },
               })
@@ -182,7 +191,7 @@ const buildServiceMemoDocument = (data: ServiceMemoData) => {
               new TableRow({
                 children: [
                   tableCell(
-                    signature.left.split("\n").map(
+                    (signature.leftLines.length ? signature.leftLines : [""]).map(
                       (line) =>
                         new Paragraph({
                           children: [t(line, false, 24)],
@@ -193,7 +202,7 @@ const buildServiceMemoDocument = (data: ServiceMemoData) => {
                   tableCell(
                     [
                       new Paragraph({
-                        alignment: AlignmentType.CENTER,
+                        alignment: AlignmentType.RIGHT,
                         children: [t(signature.right, false, 24)],
                       }),
                     ]
@@ -201,12 +210,6 @@ const buildServiceMemoDocument = (data: ServiceMemoData) => {
                 ],
               }),
             ],
-          }),
-
-          new Paragraph({
-            alignment: AlignmentType.LEFT,
-            spacing: { before: 80 },
-            children: [t(formatServiceMemoDate(data.date), false, 24)],
           }),
         ],
       },
