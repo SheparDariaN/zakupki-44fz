@@ -470,13 +470,13 @@ function PreviewContent({ state }: { state: AppState }) {
             <td className="border border-black p-1 w-[1.5cm]">ЕИ</td>
             <td className="border border-black p-1 w-[1.5cm]">Кол-во</td>
             {suppliers.map(s => (
-              <td key={s.id} className="border border-black p-1 text-xs whitespace-nowrap">
+              <td key={s.id} className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">
                 Цена единицы товара<br/>(работ, услуг)<br/>{s.kpDetails}
               </td>
             ))}
-            <td className="border border-black p-1 text-xs whitespace-nowrap">Средняя цена единицы<br/>товара (работ, услуг),<br/>(руб.)</td>
-            <td className="border border-black p-1 text-xs whitespace-nowrap">Среднее<br/>квадратичное<br/>отклонение</td>
-            <td className="border border-black p-1 text-xs whitespace-nowrap">Коэффициент<br/>вариации,<br/>(%)</td>
+            <td className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">Средняя цена единицы<br/>товара (работ, услуг),<br/>(руб.)</td>
+            <td className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">Среднее<br/>квадратичное<br/>отклонение</td>
+            <td className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">Коэффициент<br/>вариации,<br/>(%)</td>
             <td className="border border-black p-1 w-[2.6cm] text-xs">НМЦК (руб.)</td>
           </tr>
 
@@ -488,7 +488,7 @@ function PreviewContent({ state }: { state: AppState }) {
               const rawPrice = entry?.price || 0;
               if (rawPrice > 0) posPrices.push(rawPrice);
               return (
-                <td key={sup.id} className="border border-black p-1 text-center font-mono text-[9pt]">
+                <td key={sup.id} className="border border-black p-1 text-center font-mono text-[9pt] overflow-hidden break-words">
                   {formatMoney(rawPrice)}
                 </td>
               );
@@ -509,10 +509,10 @@ function PreviewContent({ state }: { state: AppState }) {
                 <td className="border border-black p-1 text-center w-[1.5cm] whitespace-nowrap">{pos.unit}</td>
                 <td className="border border-black p-1 text-center font-mono w-[1.5cm] whitespace-nowrap">{pos.quantity}</td>
                 {supplierCells}
-                <td className="border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap">{formatMoney(average)}</td>
-                <td className="border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap">{formatMoney4(stdDev)}</td>
+                <td className="border border-black p-1 text-center font-mono text-[9pt] overflow-hidden break-words">{formatMoney(average)}</td>
+                <td className="border border-black p-1 text-center font-mono text-[9pt] overflow-hidden break-words">{formatMoney4(stdDev)}</td>
                 <td
-                  className={`border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap${heterogeneous ? ' bg-black text-white font-bold' : ''}`}
+                  className={`border border-black p-1 text-center font-mono text-[9pt] overflow-hidden break-words${heterogeneous ? ' bg-black text-white font-bold' : ''}`}
                   title={heterogeneous ? 'Коэффициент вариации превышает 33% — выборка неоднородна (Приказ МЭР № 567)' : undefined}
                 >
                   {formatMoney(cv)}%
