@@ -385,7 +385,7 @@ export default function App() {
             </span>
             <span className="text-[10px] text-green-700 font-bold uppercase animate-pulse">● Авто-обновление</span>
           </div>
-          <div className="paper scroll-area flex-1 transition-all overflow-x-auto">
+          <div className="scroll-area flex-1 transition-all overflow-auto bg-[#d7d5d0] p-6">
             <PreviewContent state={state} />
           </div>
         </article>
@@ -415,7 +415,7 @@ function PreviewContent({ state }: { state: AppState }) {
   const minSupplierTotal = Math.min(...supplierTotals) || 0;
 
   return (
-    <div className="animate-in fade-in duration-300 min-w-[800px] text-[10pt] font-serif leading-tight">
+    <div className="animate-in fade-in duration-300 box-border w-[297mm] min-w-[297mm] min-h-[210mm] mx-auto bg-white shadow-[0_10px_30px_rgba(0,0,0,0.1)] p-[10mm] text-[10pt] font-serif leading-tight">
       <div className="text-center mb-0">
         <h3 className="text-[10pt] font-bold">Обоснование начальной (максимальной) цены</h3>
         <p className="mt-1 text-[9pt]">{requisites.subject}</p>
@@ -423,30 +423,52 @@ function PreviewContent({ state }: { state: AppState }) {
       
       <br/>
       <br/>
-      
-      <table className="w-full border-collapse border border-black mb-4">
+
+      <table className="w-full table-fixed border-collapse border border-black mb-0">
+        <colgroup>
+          <col className="w-[3.5cm]" />
+          <col />
+        </colgroup>
         <tbody>
           <tr>
-            <td className="border border-black p-1 text-center w-[15%]">Характеристики<br/>объекта закупки</td>
-            <td colSpan={3 + suppliers.length + 4} className="border border-black p-1">
+            <td className="w-[3.5cm] border border-black p-1 text-center">Характеристики<br/>объекта закупки</td>
+            <td className="border border-black p-1">
               {requisites.subject}
             </td>
           </tr>
           <tr>
-            <td className="border border-black p-1 text-center">Используемый метод<br/>определения НМЦ<br/>с обоснованием:</td>
-            <td colSpan={3 + suppliers.length + 4} className="border border-black p-1 text-justify">
+            <td className="w-[3.5cm] border border-black p-1 text-center">Используемый метод<br/>определения НМЦ<br/>с обоснованием:</td>
+            <td className="border border-black p-1 text-justify">
               {METHOD_TEXT}
             </td>
           </tr>
+        </tbody>
+      </table>
+      
+      <table className="w-full table-fixed border-collapse border border-black mb-4 -mt-px">
+        <colgroup>
+          <col className="w-[1cm]" />
+          <col />
+          <col className="w-[1.5cm]" />
+          <col className="w-[1.5cm]" />
+          {suppliers.map((supplier) => (
+            <col key={supplier.id} />
+          ))}
+          <col />
+          <col />
+          <col />
+          <col className="w-[2.6cm]" />
+        </colgroup>
+        <tbody>
           <tr>
             <td colSpan={4 + suppliers.length + 4} className="border border-black p-1 text-center">РАСЧЕТ НМЦК</td>
           </tr>
           
           <tr className="text-center bg-gray-50/30">
-            <td className="border border-black p-1 w-8">№</td>
-            <td className="border border-black p-1 min-w-[200px]">Наименование<br/>товара, услуги<br/>(работы)</td>
-            <td className="border border-black p-1 w-12 whitespace-nowrap">ЕИ</td>
-            <td className="border border-black p-1 w-16 whitespace-nowrap">Кол-во</td>
+            <td className="border border-black p-1 w-[1cm]">№</td>
+            <td className="border border-black p-1">Наименование<br/>товара, услуги<br/>(работы)</td>
+            <td className="border border-black p-1 w-[1.5cm]">ЕИ</td>
+            <td className="border border-black p-1 w-[1.5cm]">Кол-во</td>
             {suppliers.map(s => (
               <td key={s.id} className="border border-black p-1 text-xs whitespace-nowrap">
                 Цена единицы товара<br/>(работ, услуг)<br/>{s.kpDetails}
@@ -455,7 +477,7 @@ function PreviewContent({ state }: { state: AppState }) {
             <td className="border border-black p-1 text-xs whitespace-nowrap">Средняя цена единицы<br/>товара (работ, услуг),<br/>(руб.)</td>
             <td className="border border-black p-1 text-xs whitespace-nowrap">Среднее<br/>квадратичное<br/>отклонение</td>
             <td className="border border-black p-1 text-xs whitespace-nowrap">Коэффициент<br/>вариации,<br/>(%)</td>
-            <td className="border border-black p-1 text-xs whitespace-nowrap">НМЦК (руб.)</td>
+            <td className="border border-black p-1 w-[2.6cm] text-xs">НМЦК (руб.)</td>
           </tr>
 
           {positions.map((pos, index) => {
@@ -482,10 +504,10 @@ function PreviewContent({ state }: { state: AppState }) {
 
             return (
               <tr key={pos.id}>
-                <td className="border border-black p-1 text-center">{index + 1}</td>
+                <td className="border border-black p-1 text-center w-[1cm]">{index + 1}</td>
                 <td className="border border-black p-1 text-xs leading-tight">{pos.name}</td>
-                <td className="border border-black p-1 text-center whitespace-nowrap">{pos.unit}</td>
-                <td className="border border-black p-1 text-center font-mono whitespace-nowrap">{pos.quantity}</td>
+                <td className="border border-black p-1 text-center w-[1.5cm] whitespace-nowrap">{pos.unit}</td>
+                <td className="border border-black p-1 text-center font-mono w-[1.5cm] whitespace-nowrap">{pos.quantity}</td>
                 {supplierCells}
                 <td className="border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap">{formatMoney(average)}</td>
                 <td className="border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap">{formatMoney4(stdDev)}</td>
@@ -495,14 +517,14 @@ function PreviewContent({ state }: { state: AppState }) {
                 >
                   {formatMoney(cv)}%
                 </td>
-                <td className="border border-black p-1 text-center font-mono text-[9pt] whitespace-nowrap font-bold">{formatMoney(posTotal)}</td>
+                <td className="border border-black p-1 text-center font-mono text-[9pt] w-[2.6cm] font-bold">{formatMoney(posTotal)}</td>
               </tr>
             );
           })}
 
           <tr>
             <td colSpan={3 + suppliers.length + 4} className="border border-black p-1 text-right pr-2">Итого:</td>
-            <td className="border border-black p-1 text-center font-bold font-mono text-[12pt] whitespace-nowrap">{formatMoney(grandTotal)}</td>
+            <td className="border border-black p-1 text-center font-bold font-mono text-[12pt] w-[2.6cm]">{formatMoney(grandTotal)}</td>
           </tr>
           <tr>
             <td colSpan={4 + suppliers.length + 4} className="border border-black p-1 text-center text-[10pt]">
@@ -522,11 +544,25 @@ function PreviewContent({ state }: { state: AppState }) {
         Цена Контракта включает в себя стоимость оказываемых Услуг, а также налоги и сборы, установленные действующим законодательством Российской Федерации.
       </p>
 
-      <br/><br/><br/><br/>
-
-      <div className="flex justify-between items-end px-4">
-        <div className="border-b border-black w-48 text-center pb-1 text-sm">{requisites.executorPosition}</div>
-        <div className="border-b border-black w-48 text-center pb-1 text-sm">{requisites.executorName}</div>
+      <div className="mt-10">
+        <table className="w-full border-collapse">
+          <colgroup>
+            <col className="w-[4.5cm]" />
+            <col />
+            <col className="w-[4.5cm]" />
+          </colgroup>
+          <tbody>
+            <tr>
+              <td className="w-[4.5cm] max-w-[4.5cm] border-b border-black text-center align-bottom p-0 pb-0.5 text-[10pt]">
+                {requisites.executorPosition}
+              </td>
+              <td className="border-0 p-0" aria-hidden="true" />
+              <td className="w-[4.5cm] max-w-[4.5cm] border-b border-black text-center align-bottom p-0 pb-0.5 text-[10pt]">
+                {requisites.executorName}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       
     </div>

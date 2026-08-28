@@ -46,6 +46,14 @@ describe('morphology full name formatting', () => {
     expect(formatSignatureName('Петров Петр Петрович')).toBe('П.П. Петров');
     expect(formatInitials('Сидорова Мария Игоревна')).toBe('Сидорова М.И.');
   });
+
+  it('не переставляет уже готовые инициалы подписанта', () => {
+    expect(formatSignatureName('Д. Кокорин')).toBe('Д. Кокорин');
+    expect(formatSignatureName('Д.Кокорин')).toBe('Д. Кокорин');
+    expect(formatSignatureName('Д.М. Кокорин')).toBe('Д.М. Кокорин');
+    expect(formatSignatureName('Кокорин Д.М.')).toBe('Д.М. Кокорин');
+    expect(formatSignatureName('Кокорин Д.')).toBe('Д. Кокорин');
+  });
 });
 
 describe('morphology case transforms', () => {

@@ -44,6 +44,23 @@ describe('template normalization', () => {
     expect(state.requisites.customer).toBe('  ГКУ «ЦИТ Кузбасса»  ');
   });
 
+  it('сохраняет инициалы подписанта НМЦК без перестановки в К.Д.', () => {
+    const state: AppState = {
+      requisites: {
+        customer: 'ГКУ «ЦИТ Кузбасса»',
+        subject: 'Поставка оборудования',
+        date: '26.08.2026',
+        executorPosition: 'Начальник СЗИ',
+        executorName: 'Д.Кокорин',
+      },
+      suppliers: [{ id: '1', name: 'ООО «Пример»', kpDetails: 'Вх. № 7' }],
+      positions: [{ id: '1', name: 'Сертификат поддержки', unit: 'шт', quantity: 1 }],
+      prices: [{ positionId: '1', supplierId: '1', price: 1000 }],
+    };
+
+    expect(normalizeDocumentState('nmck', state).requisites.executorName).toBe('Д. Кокорин');
+  });
+
   it('нормализует данные КП для превью и DOCX', () => {
     const state: KpDocxData = {
       vendorInfos: ['  ООО «Поставщик»\n\ninfo@example.ru  '],

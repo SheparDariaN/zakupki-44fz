@@ -65,6 +65,10 @@ function initialForPart(value: string): string {
     .join('-');
 }
 
+function isInitialsToken(value: string): boolean {
+  return /^(?:[А-ЯЁA-Z](?:-[А-ЯЁA-Z])?\.)+$/u.test(value.replace(/\s+/g, ''));
+}
+
 function isLikelyFemaleName(parts: FullNameParts): boolean {
   const patronymic = parts.patronymic.toLowerCase();
   if (patronymic.endsWith('на')) return true;
@@ -144,7 +148,29 @@ export function formatInitials(value: string): string {
 }
 
 export function formatSignatureName(value: string): string {
-  const parts = splitFullName(value);
+  const compactValue = compact(value);
+  if (!compactValue) return '';
+
+  const gluedInitialsAndLastName = compactValue.match(
+    /^((?:[А-ЯЁA-Z](?:-[А-ЯЁA-Z])?\.)+)([А-ЯЁа-яё-]+)$/u
+  );
+  if (gluedInitialsAndLastName && !compactValue.includes(' ')) {
+    return `${gluedInitialsAndLastName[1]} ${gluedInitialsAndLastName[2]}`;
+  }
+
+  const tokens = compactValue.split(' ').filter(Boolean);
+  const firstIsInitials = isInitialsToken(tokens[0]);
+  const lastIsInitials = tokens.length > 1 && isInitialsToken(tokens[tokens.length - 1]);
+
+  if (firstIsInitials && !lastIsInitials) {
+    return compactValue;
+  }
+
+  if (lastIsInitials) {
+    return `${tokens[tokens.length - 1]} ${tokens.slice(0, -1).join(' ')}`;
+  }
+
+  const parts = splitFullName(compactValue);
   const initials = [parts.firstName, parts.patronymic].filter(Boolean).map(initialForPart).join('');
   return [initials, parts.lastName, ...parts.extra].filter(Boolean).join(' ');
 }
