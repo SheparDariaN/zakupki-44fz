@@ -17,6 +17,11 @@ describe('service memo list formatting', () => {
     ]);
   });
 
+  it('не формирует пункты списка при пустом перечне', () => {
+    expect(getServiceMemoSubjectItems('')).toEqual([]);
+    expect(getServiceMemoSubjectItems('  \n  ')).toEqual([]);
+  });
+
   it('идемпотентно форматирует уже размеченный перечень', () => {
     const formatted = formatListItems(
       'права на программу для ЭВМ «Альфа»;\nправа на программу для ЭВМ «Бета».'

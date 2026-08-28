@@ -31,17 +31,19 @@ export default function ServiceMemoPreview({ data }: PreviewProps) {
 
       <h2 className="text-center text-[12pt] mb-6">СЛУЖЕБНАЯ ЗАПИСКА</h2>
 
-      <p className="indent-8 text-justify mb-1 whitespace-pre-wrap">
+      <p className={`indent-8 text-justify whitespace-pre-wrap ${subjectItems.length > 0 ? 'mb-1' : 'mb-8'}`}>
         {getServiceMemoBodyText(normalizedData)}
       </p>
 
-      <ul className="list-disc pl-[22mm] mb-8 text-justify">
-        {subjectItems.map((item, index) => (
-          <li key={index} className="pl-1">
-            {item}
-          </li>
-        ))}
-      </ul>
+      {subjectItems.length > 0 && (
+        <ul className="list-disc pl-[22mm] mb-8 text-justify">
+          {subjectItems.map((item, index) => (
+            <li key={index} className="pl-1">
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="grid grid-cols-2 mb-1">
         <div className="whitespace-pre-wrap">{signature.left}</div>

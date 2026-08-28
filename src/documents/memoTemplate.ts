@@ -104,7 +104,8 @@ export const MEMO_TEMPLATE = {
       label: 'Перечень объектов закупки',
       statePath: 'subjectTable',
       valueType: 'list',
-      required: true,
+      required: false,
+      description: 'Необязательно: при одной позиции предмет можно указать во вводном тексте без списка.',
       sources: [
         {
           kind: 'currentPurchase',
@@ -114,7 +115,7 @@ export const MEMO_TEMPLATE = {
         },
         { kind: 'documentState', label: 'Поле документа', path: 'subjectTable', transforms: ['trim'] },
       ],
-      repeatable: { statePath: 'subjectTable', itemLabel: 'Пункт перечня', minItems: 1 },
+      repeatable: { statePath: 'subjectTable', itemLabel: 'Пункт перечня', minItems: 0 },
     },
   ],
 } satisfies DocumentTemplateSchema<'memo'>;

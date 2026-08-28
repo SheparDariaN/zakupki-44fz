@@ -38,6 +38,13 @@ describe('DOCUMENT_TEMPLATE_SCHEMAS', () => {
     expect(signerFields.every((field) => field.sources.some((source) => source.kind === 'userSettings'))).toBe(true);
   });
 
+  it('считает перечень объектов закупки служебной записки необязательным', () => {
+    const field = DOCUMENT_TEMPLATE_SCHEMAS.memo.fields.find((item) => item.fieldKey === 'subjectTable');
+
+    expect(field?.required).toBe(false);
+    expect(field?.repeatable?.minItems ?? 0).toBe(0);
+  });
+
   it('связывает адресата служебной записки и ФИО руководителя контрактной службы', () => {
     const headFields = DOCUMENT_TEMPLATE_SCHEMAS.memo.fields.filter((field) => (
       'linkedGroup' in field && field.linkedGroup?.key === 'memoContractServiceHead'

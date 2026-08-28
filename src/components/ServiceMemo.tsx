@@ -145,7 +145,6 @@ export default function ServiceMemo() {
   const canGenerate = Boolean(
     normalizedData.purpose &&
     normalizedData.subjectIntro &&
-    normalizedData.subjectTable &&
     normalizedData.requester &&
     normalizedData.contractServiceHead &&
     normalizedData.date
@@ -277,7 +276,7 @@ export default function ServiceMemo() {
                   value={data.subjectIntro}
                   onChange={e => handleChange('subjectIntro', e.target.value)}
                 />
-                <p className="text-[10px] opacity-40 mt-1">Продолжает абзац цели перед маркированным списком.</p>
+                <p className="text-[10px] opacity-40 mt-1">Продолжает абзац цели. При одной позиции предмет можно указать здесь без перечня.</p>
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Предмет закупки (перечень)</label>
@@ -287,7 +286,7 @@ export default function ServiceMemo() {
                   value={data.subjectTable}
                   onChange={e => handleChange('subjectTable', e.target.value)}
                 />
-                <p className="text-[10px] opacity-40 mt-1">Каждая строка — пункт списка со строчной буквы: «;» между пунктами и «.» в конце.</p>
+                <p className="text-[10px] opacity-40 mt-1">Необязательно. Каждая строка — пункт списка со строчной буквы: «;» между пунктами и «.» в конце.</p>
               </div>
             </div>
           </section>
