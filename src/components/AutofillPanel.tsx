@@ -1,5 +1,5 @@
-import React from 'react';
-import type { AutofillSuggestion } from '../documents/autofill';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { previewAutofillSuggestion, suggestionKey, type AutofillSuggestion } from '../documents/autofill';
 import type { AutofillSourceKind } from '../documents/templateTypes';
 
 type SourceOption = {
@@ -16,33 +16,10 @@ type AutofillPanelProps = {
   suggestions: AutofillSuggestion[];
   overwrite: boolean;
   onOverwriteChange: (overwrite: boolean) => void;
-  onApply: () => void;
+  onApply: (fieldKeys: string[]) => void;
   disabled?: boolean;
   contextNote?: string;
 };
-
-function previewValue(value: unknown): string {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => previewValue(item))
-      .filter(Boolean)
-      .join('\n---\n');
-  }
-  if (typeof value === 'number') return String(value);
-  if (typeof value === 'string') return value.trim();
-  if (value && typeof value === 'object') return JSON.stringify(value);
-  return '';
-}
-
-function previewSuggestion(suggestion: AutofillSuggestion): string {
-  if (suggestion.updates && suggestion.updates.length > 0) {
-    return suggestion.updates
-      .map((item) => `${item.label}: ${previewValue(item.value)}`)
-      .filter((line) => !line.endsWith(': '))
-      .join('\n');
-  }
-  return previewValue(suggestion.value);
-}
 
 export default function AutofillPanel({
   title,
@@ -57,10 +34,60 @@ export default function AutofillPanel({
   disabled = false,
   contextNote,
 }: AutofillPanelProps) {
-  const visibleSuggestions = overwrite
-    ? suggestions
-    : suggestions.filter((suggestion) => !suggestion.willOverwrite);
+  const visibleSuggestions = useMemo(
+    () => overwrite
+      ? suggestions
+      : suggestions.filter((suggestion) => !suggestion.willOverwrite),
+    [overwrite, suggestions]
+  );
   const overwriteCount = suggestions.filter((suggestion) => suggestion.willOverwrite).length;
+  const visibleSuggestionKeys = useMemo(
+    () => visibleSuggestions.map((suggestion) => suggestionKey(suggestion)),
+    [visibleSuggestions]
+  );
+  const [selectedSuggestionKeys, setSelectedSuggestionKeys] = useState<Set<string>>(() => new Set(visibleSuggestionKeys));
+  const previousVisibleKeysRef = useRef<Set<string>>(new Set(visibleSuggestionKeys));
+
+  useEffect(() => {
+    const previousVisibleKeys = previousVisibleKeysRef.current;
+    setSelectedSuggestionKeys((current) => {
+      const next = new Set<string>();
+
+      for (const key of visibleSuggestionKeys) {
+        if (current.has(key) || !previousVisibleKeys.has(key)) {
+          next.add(key);
+        }
+      }
+
+      return next;
+    });
+    previousVisibleKeysRef.current = new Set(visibleSuggestionKeys);
+  }, [visibleSuggestionKeys]);
+
+  const selectedFieldKeys = visibleSuggestions
+    .filter((suggestion) => selectedSuggestionKeys.has(suggestionKey(suggestion)))
+    .map((suggestion) => suggestion.fieldKey);
+  const selectedCount = selectedFieldKeys.length;
+
+  const selectAllVisible = () => {
+    setSelectedSuggestionKeys(new Set(visibleSuggestionKeys));
+  };
+
+  const clearSelection = () => {
+    setSelectedSuggestionKeys(new Set());
+  };
+
+  const toggleSuggestion = (key: string, checked: boolean) => {
+    setSelectedSuggestionKeys((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  };
 
   return (
     <section className="border border-[#141414] bg-white/60 shrink-0 shadow-sm">
@@ -104,6 +131,32 @@ export default function AutofillPanel({
           </span>
         </label>
 
+        {visibleSuggestions.length > 0 && (
+          <div className="flex items-center justify-between gap-2 text-[10px]">
+            <span className="opacity-60">
+              Отмечено: {selectedCount} из {visibleSuggestions.length}
+            </span>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={selectAllVisible}
+                className="font-bold uppercase hover:text-blue-700 disabled:opacity-40"
+                disabled={selectedCount === visibleSuggestions.length}
+              >
+                Выбрать все
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="font-bold uppercase hover:text-blue-700 disabled:opacity-40"
+                disabled={selectedCount === 0}
+              >
+                Снять все
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="max-h-56 overflow-auto border border-[#141414]/30 bg-white">
           {suggestions.length === 0 && (
             <p className="p-3 text-[10px] opacity-60">Нет предложений для выбранного источника.</p>
@@ -111,30 +164,44 @@ export default function AutofillPanel({
           {suggestions.length > 0 && visibleSuggestions.length === 0 && (
             <p className="p-3 text-[10px] opacity-60">Есть только предложения с перезаписью. Включите замену заполненных полей, чтобы применить их.</p>
           )}
-          {visibleSuggestions.map((suggestion) => (
-            <div key={`${suggestion.statePath}:${suggestion.sourceKind}`} className="border-b border-[#141414]/20 p-2 last:border-b-0">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-[10px] font-bold uppercase">{suggestion.label}</p>
-                  <p className="text-[9px] opacity-60">{suggestion.sourceLabel}; {suggestion.reason}</p>
+          {visibleSuggestions.map((suggestion) => {
+            const key = suggestionKey(suggestion);
+            return (
+              <div key={key} className="border-b border-[#141414]/20 p-2 last:border-b-0">
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedSuggestionKeys.has(key)}
+                    onChange={(event) => toggleSuggestion(key, event.target.checked)}
+                    className="mt-0.5 shrink-0"
+                    aria-label={`Применить поле: ${suggestion.label}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase">{suggestion.label}</p>
+                        <p className="text-[9px] opacity-60">{suggestion.sourceLabel}; {suggestion.reason}</p>
+                      </div>
+                      {suggestion.willOverwrite && (
+                        <span className="text-[9px] font-bold uppercase bg-yellow-100 border border-[#141414]/30 px-1">
+                          замена
+                        </span>
+                      )}
+                    </div>
+                    <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug font-sans bg-black/5 p-2 max-h-24 overflow-hidden">
+                      {previewAutofillSuggestion(suggestion)}
+                    </pre>
+                  </div>
                 </div>
-                {suggestion.willOverwrite && (
-                  <span className="text-[9px] font-bold uppercase bg-yellow-100 border border-[#141414]/30 px-1">
-                    замена
-                  </span>
-                )}
               </div>
-              <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug font-sans bg-black/5 p-2 max-h-24 overflow-hidden">
-                {previewSuggestion(suggestion)}
-              </pre>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <button
           type="button"
-          onClick={onApply}
-          disabled={disabled || visibleSuggestions.length === 0}
+          onClick={() => onApply(selectedFieldKeys)}
+          disabled={disabled || visibleSuggestions.length === 0 || selectedCount === 0}
           className="border border-[#141414] bg-[#141414] text-white px-3 py-2 text-[10px] font-bold uppercase hover:bg-white hover:text-[#141414] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Применить предложения

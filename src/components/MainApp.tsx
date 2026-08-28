@@ -7,10 +7,11 @@ import { Trash2, Plus, RefreshCw, Download, User } from 'lucide-react';
 import AppNav from './AppNav';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
-import { applyNmckAutofill, resolveAutofill, type AutofillUserSettings } from '../documents/autofill';
+import { applyNmckAutofill, resolveAutofill, suggestionsForField, type AutofillSuggestion, type AutofillUserSettings } from '../documents/autofill';
 import type { AutofillSourceKind } from '../documents/templateTypes';
 import { formatDateRu } from '../utils/morphology';
 import AutofillPanel from './AutofillPanel';
+import AutofillSuggestField from './AutofillSuggestField';
 import { saveCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeNmckState } from '../documents/templateNormalization';
 
@@ -74,17 +75,35 @@ export default function App() {
     includeFilled: true,
     sourceKinds: autofillSourceKinds,
   }), [autofillSourceKinds, state, userSettings]);
+  const fieldAutofillSuggestions = useMemo(() => resolveAutofill('nmck', state, { userSettings }, {
+    includeFilled: true,
+  }), [state, userSettings]);
 
-  const applyAutofillSuggestions = () => {
+  const applyAutofillSuggestions = (fieldKeys: string[]) => {
     const result = applyNmckAutofill(state, { userSettings }, {
       includeFilled: true,
       overwrite: autofillOverwrite,
       sourceKinds: autofillSourceKinds,
+      fieldKeys,
     });
     setState(result.state);
     setDownloadMessage(result.changed.length > 0
       ? `Автозаполнение применено: ${result.changed.length} пол.`
       : 'Нет полей для автозаполнения без перезаписи.');
+    setDownloadMessageError(false);
+  };
+
+  const pickAutofillSuggestion = (fieldKey: string, suggestion: AutofillSuggestion) => {
+    const result = applyNmckAutofill(state, { userSettings }, {
+      includeFilled: true,
+      overwrite: true,
+      sourceKinds: [suggestion.sourceKind],
+      fieldKeys: [fieldKey],
+    });
+    setState(result.state);
+    setDownloadMessage(result.changed.length > 0
+      ? `Поле заполнено: ${result.changed[0].label}.`
+      : 'Нет данных для подстановки.');
     setDownloadMessageError(false);
   };
 
@@ -185,6 +204,7 @@ export default function App() {
   };
 
   const inputClass = "w-full h-full bg-transparent border border-transparent hover:bg-black/5 focus:bg-white focus:border-black outline-none px-2 py-1.5 text-[11px] transition-all duration-200 cursor-text rounded-sm";
+  const fieldClass = "bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors";
   const labelClass = "text-[9px] uppercase opacity-60 mb-1 font-bold";
 
   return (
@@ -242,28 +262,58 @@ export default function App() {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col">
                 <label className={labelClass}>Заказчик</label>
-                <input type="text" className="bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors"
-                  value={state.requisites.customer} onChange={e => setState({ ...state, requisites: { ...state.requisites, customer: e.target.value } })} />
+                <AutofillSuggestField
+                  fieldKey="customer"
+                  className={fieldClass}
+                  value={state.requisites.customer}
+                  onChange={value => setState({ ...state, requisites: { ...state.requisites, customer: value } })}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'customer')}
+                  onPick={suggestion => pickAutofillSuggestion('customer', suggestion)}
+                />
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Дата составления</label>
-                <input type="text" className="bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors"
-                  value={state.requisites.date} onChange={e => setState({ ...state, requisites: { ...state.requisites, date: e.target.value } })} />
+                <AutofillSuggestField
+                  fieldKey="date"
+                  className={fieldClass}
+                  value={state.requisites.date}
+                  onChange={value => setState({ ...state, requisites: { ...state.requisites, date: value } })}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'date')}
+                  onPick={suggestion => pickAutofillSuggestion('date', suggestion)}
+                />
               </div>
               <div className="flex flex-col col-span-2">
                 <label className={labelClass}>Объект закупки</label>
-                <input type="text" className="bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors"
-                  value={state.requisites.subject} onChange={e => setState({ ...state, requisites: { ...state.requisites, subject: e.target.value } })} />
+                <AutofillSuggestField
+                  fieldKey="subject"
+                  className={fieldClass}
+                  value={state.requisites.subject}
+                  onChange={value => setState({ ...state, requisites: { ...state.requisites, subject: value } })}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'subject')}
+                  onPick={suggestion => pickAutofillSuggestion('subject', suggestion)}
+                />
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Должность подписанта (Лев)</label>
-                <input type="text" className="bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors"
-                  value={state.requisites.executorPosition} onChange={e => setState({ ...state, requisites: { ...state.requisites, executorPosition: e.target.value } })} />
+                <AutofillSuggestField
+                  fieldKey="executorPosition"
+                  className={fieldClass}
+                  value={state.requisites.executorPosition}
+                  onChange={value => setState({ ...state, requisites: { ...state.requisites, executorPosition: value } })}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'executorPosition')}
+                  onPick={suggestion => pickAutofillSuggestion('executorPosition', suggestion)}
+                />
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>ФИО подписанта (Прав)</label>
-                <input type="text" className="bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors"
-                  value={state.requisites.executorName} onChange={e => setState({ ...state, requisites: { ...state.requisites, executorName: e.target.value } })} />
+                <AutofillSuggestField
+                  fieldKey="executorName"
+                  className={fieldClass}
+                  value={state.requisites.executorName}
+                  onChange={value => setState({ ...state, requisites: { ...state.requisites, executorName: value } })}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'executorName')}
+                  onPick={suggestion => pickAutofillSuggestion('executorName', suggestion)}
+                />
               </div>
             </div>
           </section>

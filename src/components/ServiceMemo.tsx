@@ -5,9 +5,10 @@ import AppNav from './AppNav';
 import ServiceMemoPreview from './ServiceMemoPreview';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
-import { applyMemoAutofill, resolveAutofill, syncMemoRequesterInflection, type AutofillUserSettings } from '../documents/autofill';
+import { applyMemoAutofill, resolveAutofill, suggestionsForField, syncMemoRequesterInflection, type AutofillSuggestion, type AutofillUserSettings } from '../documents/autofill';
 import type { AutofillSourceKind } from '../documents/templateTypes';
 import AutofillPanel from './AutofillPanel';
+import AutofillSuggestField from './AutofillSuggestField';
 import { describeCurrentPurchase, loadCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeMemoState } from '../documents/templateNormalization';
 import { DEFAULT_MEMO_ADDRESSEE } from '../utils/serviceMemoDocxGenerator';
@@ -71,17 +72,35 @@ export default function ServiceMemo() {
     includeFilled: true,
     sourceKinds: autofillSourceKinds,
   }), [autofillContext, autofillSourceKinds, data]);
+  const fieldAutofillSuggestions = useMemo(() => resolveAutofill('memo', data, autofillContext, {
+    includeFilled: true,
+  }), [autofillContext, data]);
 
-  const applyAutofillSuggestions = () => {
+  const applyAutofillSuggestions = (fieldKeys: string[]) => {
     const result = applyMemoAutofill(data, autofillContext, {
       includeFilled: true,
       overwrite: autofillOverwrite,
       sourceKinds: autofillSourceKinds,
+      fieldKeys,
     });
     setData(result.state);
     setDownloadMessage(result.changed.length > 0
       ? `Автозаполнение применено: ${result.changed.length} пол.`
       : 'Нет полей для автозаполнения без перезаписи.');
+    setDownloadMessageError(false);
+  };
+
+  const pickAutofillSuggestion = (field: keyof ServiceMemoData, suggestion: AutofillSuggestion) => {
+    const result = applyMemoAutofill(data, autofillContext, {
+      includeFilled: true,
+      overwrite: true,
+      sourceKinds: [suggestion.sourceKind],
+      fieldKeys: [field],
+    });
+    setData(result.state);
+    setDownloadMessage(result.changed.length > 0
+      ? `Поле заполнено: ${result.changed[0].label}.`
+      : 'Нет данных для подстановки.');
     setDownloadMessageError(false);
   };
 
@@ -206,33 +225,43 @@ export default function ServiceMemo() {
             <div className="flex flex-col gap-4">
               <div className="flex flex-col">
                 <label className={labelClass}>Адресат</label>
-                <input
-                  type="text"
+                <AutofillSuggestField
+                  fieldKey="addressee"
                   className={fieldClass}
                   value={data.addressee}
-                  onChange={e => handleChange('addressee', e.target.value)}
+                  onChange={value => handleChange('addressee', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'addressee')}
+                  onPick={suggestion => pickAutofillSuggestion('addressee', suggestion)}
                   placeholder={DEFAULT_MEMO_ADDRESSEE}
                 />
                 <p className="text-[10px] opacity-40 mt-1">Первая строка шапки. Можно заменить, например на «Директору».</p>
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>ФИО руководителя контрактной службы</label>
-                <textarea
+                <AutofillSuggestField
+                  fieldKey="contractServiceHead"
+                  multiline
                   rows={3}
                   className={textareaClass}
                   value={data.contractServiceHead}
-                  onChange={e => handleChange('contractServiceHead', e.target.value)}
+                  onChange={value => handleChange('contractServiceHead', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'contractServiceHead')}
+                  onPick={suggestion => pickAutofillSuggestion('contractServiceHead', suggestion)}
                   placeholder="Петров Петр Петрович"
                 />
                 <p className="text-[10px] opacity-40 mt-1">Предлагается из профиля и подставляется только по кнопке автозаполнения.</p>
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Составитель запроса</label>
-                <textarea
+                <AutofillSuggestField
+                  fieldKey="requester"
+                  multiline
                   rows={3}
                   className={textareaClass}
                   value={data.requester}
-                  onChange={e => handleChange('requester', e.target.value)}
+                  onChange={value => handleChange('requester', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'requester')}
+                  onPick={suggestion => pickAutofillSuggestion('requester', suggestion)}
                   placeholder="Должность, ФИО"
                 />
                 <p className="text-[10px] opacity-40 mt-1">В шапке — родительный падеж, в подписи — именительный.</p>
@@ -253,11 +282,15 @@ export default function ServiceMemo() {
             <h2 className="text-[11px] uppercase font-bold mb-4 flex items-center gap-2">
               <span className="w-2 h-2 bg-black rounded-full animate-pulse"></span> Цель закупки
             </h2>
-            <textarea
+            <AutofillSuggestField
+              fieldKey="purpose"
+              multiline
               rows={6}
               className={textareaClass}
               value={data.purpose}
-              onChange={e => handleChange('purpose', e.target.value)}
+              onChange={value => handleChange('purpose', value)}
+              suggestions={suggestionsForField(fieldAutofillSuggestions, 'purpose')}
+              onPick={suggestion => pickAutofillSuggestion('purpose', suggestion)}
               placeholder="Текст после заголовка «Служебная записка»..."
             />
             <p className="text-[10px] opacity-40 mt-2">
@@ -270,21 +303,29 @@ export default function ServiceMemo() {
             <div className="flex flex-col gap-4">
               <div className="flex flex-col">
                 <label className={labelClass}>Предмет закупки (введение)</label>
-                <textarea
+                <AutofillSuggestField
+                  fieldKey="subjectIntro"
+                  multiline
                   rows={2}
                   className={`${fieldClass} resize-none`}
                   value={data.subjectIntro}
-                  onChange={e => handleChange('subjectIntro', e.target.value)}
+                  onChange={value => handleChange('subjectIntro', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'subjectIntro')}
+                  onPick={suggestion => pickAutofillSuggestion('subjectIntro', suggestion)}
                 />
                 <p className="text-[10px] opacity-40 mt-1">Продолжает абзац цели. При одной позиции предмет можно указать здесь без перечня.</p>
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Предмет закупки (перечень)</label>
-                <textarea
+                <AutofillSuggestField
+                  fieldKey="subjectTable"
+                  multiline
                   rows={4}
                   className={textareaClass}
                   value={data.subjectTable}
-                  onChange={e => handleChange('subjectTable', e.target.value)}
+                  onChange={value => handleChange('subjectTable', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'subjectTable')}
+                  onPick={suggestion => pickAutofillSuggestion('subjectTable', suggestion)}
                 />
                 <p className="text-[10px] opacity-40 mt-1">Необязательно. Каждая строка — пункт списка со строчной буквы: «;» между пунктами и «.» в конце.</p>
               </div>

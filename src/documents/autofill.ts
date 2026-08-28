@@ -215,6 +215,43 @@ function fieldMatchesKeys(field: TemplateFieldSchema, keys?: readonly string[]):
     || Boolean(field.linkedGroup && keys.includes(field.linkedGroup.key));
 }
 
+export function suggestionKey(suggestion: Pick<AutofillSuggestion, 'fieldKey' | 'sourceKind'>): string {
+  return `${suggestion.fieldKey}:${suggestion.sourceKind}`;
+}
+
+export function previewAutofillValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => previewAutofillValue(item))
+      .filter(Boolean)
+      .join('\n---\n');
+  }
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'string') return value.trim();
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  return '';
+}
+
+export function previewAutofillSuggestion(suggestion: AutofillSuggestion): string {
+  if (suggestion.updates && suggestion.updates.length > 0) {
+    return suggestion.updates
+      .map((item) => `${item.label}: ${previewAutofillValue(item.value)}`)
+      .filter((line) => !line.endsWith(': '))
+      .join('\n');
+  }
+  return previewAutofillValue(suggestion.value);
+}
+
+export function suggestionsForField<K extends DocumentKind>(
+  suggestions: readonly AutofillSuggestion<K>[],
+  fieldKey: string
+): AutofillSuggestion<K>[] {
+  return suggestions.filter((suggestion) => (
+    suggestion.fieldKey === fieldKey
+    || Boolean(suggestion.updates?.some((update) => update.fieldKey === fieldKey))
+  ));
+}
+
 function mergeLinkedGroupSuggestions<K extends DocumentKind>(
   suggestions: AutofillSuggestion<K>[]
 ): AutofillSuggestion<K>[] {

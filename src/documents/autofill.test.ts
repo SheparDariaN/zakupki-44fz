@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { AppState, Counterparty, KpDocxData, ServiceMemoData } from '../types';
-import { applyAutofill, formatCounterpartyVendorInfo, resolveAutofill, syncMemoRequesterInflection } from './autofill';
+import {
+  applyAutofill,
+  formatCounterpartyVendorInfo,
+  resolveAutofill,
+  suggestionKey,
+  suggestionsForField,
+  syncMemoRequesterInflection,
+} from './autofill';
 import { DOCUMENT_TEMPLATE_SCHEMAS } from './templateSchemas';
 import type { TemplateTransform } from './templateTypes';
 import { formatContactPersonWithPhone } from './templateTransforms';
@@ -135,6 +142,30 @@ describe('autofill engine', () => {
       'Руководитель контрактной службы',
       'Сидоров Сидор Сидорович',
     ]);
+    expect(suggestionsForField(suggestions, 'signerName')).toEqual([signer]);
+    expect(suggestionKey(signer!)).toBe('kpSigner:userSettings');
+  });
+
+  it('применяет только выбранное подмножество fieldKeys', () => {
+    const state = kpState();
+
+    const result = applyAutofill('kp', state, {
+      userSettings: {
+        submissionEmail: 'kp@example.ru',
+        contactPerson: 'Сидорова Сидора Сидоровна',
+        contactPhone: '8-384-244-26-28',
+        contractServiceHeadPosition: 'Руководитель контрактной службы',
+        contractServiceHeadName: 'Сидоров Сидор Сидорович',
+      },
+    }, {
+      fieldKeys: ['submissionEmail', 'signerName'],
+    });
+
+    expect(result.state.submissionEmail).toBe('kp@example.ru');
+    expect(result.state.contactPerson).toBe('');
+    expect(result.state.signerPosition).toBe('');
+    expect(result.state.signerName).toBe('Сидоров Сидор Сидорович');
+    expect(result.changed.map((item) => item.fieldKey)).toEqual(['submissionEmail', 'signerName']);
   });
 
   it('при загрузке КП не подставляет подписанта из профиля, только контакты', () => {

@@ -5,9 +5,10 @@ import AppNav from './AppNav';
 import { Trash2, Plus, RefreshCw, Download, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
-import { applyKpAutofill, formatCounterpartyVendorInfo, resolveAutofill, type AutofillUserSettings } from '../documents/autofill';
+import { applyKpAutofill, formatCounterpartyVendorInfo, resolveAutofill, suggestionsForField, type AutofillSuggestion, type AutofillUserSettings } from '../documents/autofill';
 import type { AutofillSourceKind } from '../documents/templateTypes';
 import AutofillPanel from './AutofillPanel';
+import AutofillSuggestField from './AutofillSuggestField';
 import { describeCurrentPurchase, loadCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeKpState } from '../documents/templateNormalization';
 
@@ -175,18 +176,37 @@ export default function KpRequest() {
     includeFilled: true,
     sourceKinds: autofillSourceKinds,
   }), [autofillContext, autofillSourceKinds, data]);
+  const fieldAutofillSuggestions = useMemo(() => resolveAutofill('kp', data, autofillContext, {
+    includeFilled: true,
+  }), [autofillContext, data]);
 
-  const applyAutofillSuggestions = () => {
+  const applyAutofillSuggestions = (fieldKeys: string[]) => {
     const result = applyKpAutofill(data, autofillContext, {
       includeFilled: true,
       overwrite: autofillOverwrite,
       sourceKinds: autofillSourceKinds,
+      fieldKeys,
     });
     setData(result.state);
     setPreviewIndex(0);
     setDownloadMessage(result.changed.length > 0
       ? `Автозаполнение применено: ${result.changed.length} пол.`
       : 'Нет полей для автозаполнения без перезаписи.');
+    setDownloadMessageError(false);
+  };
+
+  const pickAutofillSuggestion = (field: keyof KpDocxData, suggestion: AutofillSuggestion) => {
+    const result = applyKpAutofill(data, autofillContext, {
+      includeFilled: true,
+      overwrite: true,
+      sourceKinds: [suggestion.sourceKind],
+      fieldKeys: [field],
+    });
+    setData(result.state);
+    setPreviewIndex(0);
+    setDownloadMessage(result.changed.length > 0
+      ? `Поле заполнено: ${result.changed[0].label}.`
+      : 'Нет данных для подстановки.');
     setDownloadMessageError(false);
   };
 
@@ -492,21 +512,29 @@ export default function KpRequest() {
             <div className="flex flex-col gap-4">
               <div className="flex flex-col">
                 <label className={labelClass}>Предмет закупки (введение)</label>
-                <textarea
+                <AutofillSuggestField
+                  fieldKey="subjectIntro"
+                  multiline
                   rows={2}
                   className={`${fieldClass} resize-none`}
                   value={data.subjectIntro}
-                  onChange={e => handleChange('subjectIntro', e.target.value)}
+                  onChange={value => handleChange('subjectIntro', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'subjectIntro')}
+                  onPick={suggestion => pickAutofillSuggestion('subjectIntro', suggestion)}
                 />
                 <p className="text-[10px] opacity-40 mt-1">Продолжение фразы: «...планирует осуществить закупку на»</p>
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Предмет закупки (в таблице)</label>
-                <textarea
+                <AutofillSuggestField
+                  fieldKey="subjectTable"
+                  multiline
                   rows={2}
                   className={`${fieldClass} resize-none`}
                   value={data.subjectTable}
-                  onChange={e => handleChange('subjectTable', e.target.value)}
+                  onChange={value => handleChange('subjectTable', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'subjectTable')}
+                  onPick={suggestion => pickAutofillSuggestion('subjectTable', suggestion)}
                 />
               </div>
             </div>
@@ -554,58 +582,70 @@ export default function KpRequest() {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col">
                 <label className={labelClass}>Сроки закупки</label>
-                <input
-                  type="text"
+                <AutofillSuggestField
+                  fieldKey="purchasePeriod"
                   className={fieldClass}
                   value={data.purchasePeriod}
-                  onChange={e => handleChange('purchasePeriod', e.target.value)}
+                  onChange={value => handleChange('purchasePeriod', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'purchasePeriod')}
+                  onPick={suggestion => pickAutofillSuggestion('purchasePeriod', suggestion)}
                 />
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Срок подачи КП</label>
-                <input
-                  type="text"
+                <AutofillSuggestField
+                  fieldKey="submissionDeadline"
                   className={fieldClass}
                   value={data.submissionDeadline}
-                  onChange={e => handleChange('submissionDeadline', e.target.value)}
+                  onChange={value => handleChange('submissionDeadline', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'submissionDeadline')}
+                  onPick={suggestion => pickAutofillSuggestion('submissionDeadline', suggestion)}
                 />
               </div>
               <div className="flex flex-col col-span-2">
                 <label className={labelClass}>Адрес электронной почты для предоставления сканированных копий писем</label>
-                <input
-                  type="text"
+                <AutofillSuggestField
+                  fieldKey="submissionEmail"
                   className={fieldClass}
                   value={data.submissionEmail}
-                  onChange={e => handleChange('submissionEmail', e.target.value)}
+                  onChange={value => handleChange('submissionEmail', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'submissionEmail')}
+                  onPick={suggestion => pickAutofillSuggestion('submissionEmail', suggestion)}
                 />
               </div>
               <div className="flex flex-col col-span-2">
                 <label className={labelClass}>Контактные лица</label>
-                <input
-                  type="text"
+                <AutofillSuggestField
+                  fieldKey="contactPerson"
                   className={fieldClass}
                   value={data.contactPerson}
-                  onChange={e => handleChange('contactPerson', e.target.value)}
+                  onChange={value => handleChange('contactPerson', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'contactPerson')}
+                  onPick={suggestion => pickAutofillSuggestion('contactPerson', suggestion)}
                 />
                 <p className="text-[10px] opacity-40 mt-1">Из профиля подставляются вместе: e-mail и ФИО с телефоном в формате «т. n».</p>
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>Должность подписанта</label>
-                <input
-                  type="text"
+                <AutofillSuggestField
+                  fieldKey="signerPosition"
                   className={fieldClass}
                   value={data.signerPosition}
-                  onChange={e => handleChange('signerPosition', e.target.value)}
+                  onChange={value => handleChange('signerPosition', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'signerPosition')}
+                  onPick={suggestion => pickAutofillSuggestion('signerPosition', suggestion)}
                   placeholder="Руководитель контрактной службы"
                 />
               </div>
               <div className="flex flex-col">
                 <label className={labelClass}>ФИО подписанта</label>
-                <input
-                  type="text"
+                <AutofillSuggestField
+                  fieldKey="signerName"
                   className={fieldClass}
                   value={data.signerName}
-                  onChange={e => handleChange('signerName', e.target.value)}
+                  onChange={value => handleChange('signerName', value)}
+                  suggestions={suggestionsForField(fieldAutofillSuggestions, 'signerName')}
+                  onPick={suggestion => pickAutofillSuggestion('signerName', suggestion)}
                   placeholder="И. И. Иванов"
                 />
               </div>
