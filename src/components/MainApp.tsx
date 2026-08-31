@@ -3,7 +3,7 @@ import { AppState } from '../types';
 import { formatMoney, formatMoney4, calculateAverage, calculateStandardDeviation, calculateCV, isCvHeterogeneous } from '../utils/math';
 import { METHOD_TEXT } from '../utils/docxGenerator';
 import { formatAmountInWords } from '../utils/numberToWords';
-import { Trash2, Plus, RefreshCw, Download, User } from 'lucide-react';
+import { Trash2, Plus, RefreshCw, Download, User, FileSpreadsheet } from 'lucide-react';
 import AppNav from './AppNav';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
@@ -12,8 +12,10 @@ import type { AutofillSourceKind } from '../documents/templateTypes';
 import { formatDateRu } from '../utils/morphology';
 import AutofillPanel from './AutofillPanel';
 import AutofillSuggestField from './AutofillSuggestField';
+import ImportModal from './ImportModal';
 import { saveCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeNmckState } from '../documents/templateNormalization';
+import { applyColumnPaste, importTable, parseColumnPasteValues, parsePrice, type ColumnPasteField } from '../utils/tableImport';
 
 const initialState: AppState = {
   requisites: {
@@ -42,11 +44,25 @@ const initialState: AppState = {
   ]
 };
 
+function createPriceDraftKey(positionId: string, supplierId: string): string {
+  return `${positionId}:${supplierId}`;
+}
+
+function isIncompletePriceInput(value: string): boolean {
+  const normalizedValue = value
+    .replace(/\s/g, '')
+    .replace(/[^\d.,-]/g, '');
+
+  return normalizedValue === '-' || /[.,]$/.test(normalizedValue);
+}
+
 export default function App() {
   const [state, setState] = useState<AppState>(initialState);
   const [userSettings, setUserSettings] = useState<AutofillUserSettings>();
   const [autofillSource, setAutofillSource] = useState<'all' | AutofillSourceKind>('all');
   const [autofillOverwrite, setAutofillOverwrite] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [downloadMessage, setDownloadMessage] = useState('');
   const [downloadMessageError, setDownloadMessageError] = useState(false);
 
@@ -112,6 +128,7 @@ export default function App() {
     const currentCustomer = state.requisites.customer;
     const currentPos = state.requisites.executorPosition;
     const currentName = state.requisites.executorName;
+    setPriceDrafts({});
     setState({
       ...initialState,
       requisites: {
@@ -153,8 +170,7 @@ export default function App() {
     }));
   };
 
-  const handlePriceChange = (positionId: string, supplierId: string, value: string) => {
-    const price = parseFloat(value) || 0;
+  const commitPrice = (positionId: string, supplierId: string, price: number) => {
     setState(prev => {
       const existing = prev.prices.find(p => p.positionId === positionId && p.supplierId === supplierId);
       if (existing) {
@@ -168,6 +184,67 @@ export default function App() {
         prices: [...prev.prices, { positionId, supplierId, price }]
       };
     });
+  };
+
+  const handlePriceChange = (positionId: string, supplierId: string, value: string) => {
+    const draftKey = createPriceDraftKey(positionId, supplierId);
+
+    if (isIncompletePriceInput(value)) {
+      setPriceDrafts(prev => ({ ...prev, [draftKey]: value }));
+      return;
+    }
+
+    setPriceDrafts(prev => {
+      if (!(draftKey in prev)) return prev;
+      const { [draftKey]: _removedDraft, ...nextDrafts } = prev;
+      return nextDrafts;
+    });
+
+    const price = parsePrice(value);
+    commitPrice(positionId, supplierId, price);
+  };
+
+  const handlePriceBlur = (positionId: string, supplierId: string, value: string) => {
+    const draftKey = createPriceDraftKey(positionId, supplierId);
+
+    if (!(draftKey in priceDrafts) && !isIncompletePriceInput(value)) {
+      return;
+    }
+
+    setPriceDrafts(prev => {
+      const { [draftKey]: _removedDraft, ...nextDrafts } = prev;
+      return nextDrafts;
+    });
+    commitPrice(positionId, supplierId, parsePrice(value));
+  };
+
+  const handleImport = (text: string) => {
+    setState(prev => {
+      const imported = importTable(text, prev.suppliers);
+
+      return {
+        ...prev,
+        positions: [...prev.positions, ...imported.positions],
+        prices: [...prev.prices, ...imported.prices],
+      };
+    });
+    setIsImportModalOpen(false);
+  };
+
+  const handleColumnPaste = (
+    event: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    startIndex: number,
+    field: ColumnPasteField,
+    supplierId?: string,
+  ) => {
+    const values = parseColumnPasteValues(event.clipboardData.getData('text'));
+    if (!values) return;
+
+    event.preventDefault();
+    if (field === 'price' && supplierId) {
+      setPriceDrafts({});
+    }
+    setState(prev => applyColumnPaste(prev, startIndex, field, values, supplierId));
   };
 
   const handleDocxDownload = async () => {
@@ -232,6 +309,14 @@ export default function App() {
         <div className={`mb-4 border border-[#141414] bg-white px-4 py-3 text-sm ${downloadMessageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
           {downloadMessage}
         </div>
+      )}
+
+      {isImportModalOpen && (
+        <ImportModal
+          suppliers={state.suppliers}
+          onClose={() => setIsImportModalOpen(false)}
+          onImport={handleImport}
+        />
       )}
 
       <main className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-grow overflow-hidden">
@@ -354,9 +439,14 @@ export default function App() {
           <section className="flex flex-col border border-[#141414] bg-white/40 shrink-0 shadow-sm transition-all hover:bg-white/60">
             <div className="p-3 border-b border-[#141414] flex justify-between items-center shrink-0 bg-black/5">
               <h2 className="text-[11px] uppercase font-bold">Позиции закупки</h2>
-              <button onClick={addPosition} className="text-[10px] font-bold flex items-center gap-1 hover:text-blue-600 transition-colors">
-                <Plus className="w-3.5 h-3.5" /> Добавить
-              </button>
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <button onClick={() => setIsImportModalOpen(true)} className="text-[10px] font-bold flex items-center gap-1 hover:text-blue-600 transition-colors">
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> Импорт из Excel
+                </button>
+                <button onClick={addPosition} className="text-[10px] font-bold flex items-center gap-1 hover:text-blue-600 transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> Добавить
+                </button>
+              </div>
             </div>
             <div className="p-0 overflow-x-auto">
               <table className="w-full data-grid border-none">
@@ -369,11 +459,11 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.positions.map((position) => (
+                  {state.positions.map((position, positionIndex) => (
                     <tr key={position.id} className="group hover:bg-black/5 transition-colors">
-                      <td className="p-0"><textarea rows={2} className={`${inputClass} resize-none min-h-[40px]`} value={position.name} onChange={e => setState({ ...state, positions: state.positions.map(p => p.id === position.id ? { ...p, name: e.target.value } : p) })} /></td>
-                      <td className="p-0"><input type="text" className={inputClass} value={position.unit} onChange={e => setState({ ...state, positions: state.positions.map(p => p.id === position.id ? { ...p, unit: e.target.value } : p) })} /></td>
-                      <td className="mono p-0 text-right"><input type="number" min="1" className={`${inputClass} text-right`} value={position.quantity} onChange={e => setState({ ...state, positions: state.positions.map(p => p.id === position.id ? { ...p, quantity: parseInt(e.target.value) || 1 } : p) })} /></td>
+                      <td className="p-0"><textarea rows={2} className={`${inputClass} resize-none min-h-[40px]`} value={position.name} onPaste={e => handleColumnPaste(e, positionIndex, 'name')} onChange={e => setState({ ...state, positions: state.positions.map(p => p.id === position.id ? { ...p, name: e.target.value } : p) })} title="Вставьте столбец наименований сюда" /></td>
+                      <td className="p-0"><input type="text" className={inputClass} value={position.unit} onPaste={e => handleColumnPaste(e, positionIndex, 'unit')} onChange={e => setState({ ...state, positions: state.positions.map(p => p.id === position.id ? { ...p, unit: e.target.value } : p) })} title="Вставьте столбец ЕИ сюда" /></td>
+                      <td className="mono p-0 text-right"><input type="text" inputMode="numeric" className={`${inputClass} text-right`} value={position.quantity} onPaste={e => handleColumnPaste(e, positionIndex, 'quantity')} onChange={e => setState({ ...state, positions: state.positions.map(p => p.id === position.id ? { ...p, quantity: parseInt(e.target.value) || 1 } : p) })} title="Вставьте столбец количества сюда" /></td>
                       <td className="text-center p-0 align-middle">
                         <button onClick={() => removePosition(position.id)} className="text-black/30 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100 mx-auto" title="Удалить">
                           <Trash2 className="w-4 h-4" />
@@ -401,19 +491,25 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.positions.map(pos => (
+                  {state.positions.map((pos, positionIndex) => (
                     <tr key={pos.id} className="hover:bg-black/5 transition-colors">
                       <td className="text-[11px] whitespace-normal break-words min-w-[120px] max-w-[200px] font-medium" title={pos.name}>{pos.name}</td>
                       {state.suppliers.map(sup => {
-                        const val = state.prices.find(p => p.positionId === pos.id && p.supplierId === sup.id)?.price || '';
+                        const draftKey = createPriceDraftKey(pos.id, sup.id);
+                        const savedPrice = state.prices.find(p => p.positionId === pos.id && p.supplierId === sup.id)?.price || '';
+                        const val = priceDrafts[draftKey] ?? savedPrice;
                         return (
                           <td key={sup.id} className="mono p-0 text-right">
                             <input 
-                              type="number" 
+                              type="text"
+                              inputMode="decimal"
                               placeholder="0.00"
                               className="w-full h-full bg-transparent border border-transparent hover:bg-blue-50 focus:bg-white focus:border-blue-500 outline-none px-2 py-2 text-right text-[11px] transition-all cursor-text"
                               value={val}
+                              onPaste={(e) => handleColumnPaste(e, positionIndex, 'price', sup.id)}
                               onChange={(e) => handlePriceChange(pos.id, sup.id, e.target.value)}
+                              onBlur={(e) => handlePriceBlur(pos.id, sup.id, e.target.value)}
+                              title={`Вставьте столбец с ценами от ${sup.name}`}
                             />
                           </td>
                         );
