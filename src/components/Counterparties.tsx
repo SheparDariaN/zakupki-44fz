@@ -256,14 +256,14 @@ export default function Counterparties() {
   };
 
   const labelClass = 'text-[10px] uppercase font-bold mb-1 opacity-70';
-  const inputClass = 'border border-[#141414] px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black';
+  const inputClass = 'border border-line px-3 py-2 text-sm bg-surface focus:outline-none focus:ring-1 focus:ring-ink';
   const mutedText = 'text-[11px] opacity-60';
   const canSave = Boolean(form.companyName.trim()) && !saving;
 
   return (
-    <div className="pb-8 font-sans text-[#141414]">
+    <div className="pb-8 font-sans text-ink">
       <div className="max-w-6xl mx-auto">
-        <header className="flex justify-between items-center mb-8 border-b border-[#141414] pb-4 gap-4">
+        <header className="flex justify-between items-center mb-8 border-b border-line pb-4 gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold uppercase tracking-tighter">Справочник контрагентов</h1>
             <p className="text-[10px] opacity-60">Общий список организаций для запросов коммерческих предложений.</p>
@@ -272,7 +272,7 @@ export default function Counterparties() {
             <button
               type="button"
               onClick={() => void fetchCounterparties()}
-              className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-yellow-100 text-sm font-bold"
+              className="btn-brutal bg-surface border border-line flex items-center gap-2 hover:bg-yellow-100 text-sm font-bold"
             >
               <RefreshCw className="w-3.5 h-3.5" /> Обновить
             </button>
@@ -280,14 +280,14 @@ export default function Counterparties() {
         </header>
 
         {message && (
-          <div className={`mb-4 p-3 bg-white border border-[#141414] text-sm ${messageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
+          <div className={`mb-4 p-3 bg-surface border border-line text-sm ${messageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
             {message}
           </div>
         )}
 
         <main className="grid grid-cols-1 xl:grid-cols-12 gap-8">
           <aside className="xl:col-span-4 flex flex-col gap-6">
-            <section className="bg-white p-6 border border-[#141414]">
+            <section className="bg-surface p-6 border border-line">
               <div className="flex items-center justify-between gap-3 mb-5">
                 <h2 className="text-sm uppercase font-bold">{editingId ? 'Редактирование' : 'Новый контрагент'}</h2>
                 {editingId && (
@@ -401,7 +401,7 @@ export default function Counterparties() {
                 <button
                   type="submit"
                   disabled={!canSave}
-                  className="mt-2 bg-[#141414] text-white py-2 text-sm font-bold uppercase hover:bg-black/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="btn-brutal btn-brutal-primary mt-2 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editingId ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                   {saving ? 'Сохранение...' : editingId ? 'Сохранить изменения' : 'Добавить контрагента'}
@@ -409,13 +409,13 @@ export default function Counterparties() {
               </form>
             </section>
 
-            <section className="bg-white/60 p-6 border border-[#141414]">
+            <section className="bg-surface/60 p-6 border border-line">
               <h2 className="text-sm uppercase font-bold mb-4">Фильтры</h2>
               <div className="relative mb-4">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
                 <input
                   type="search"
-                  className="border border-[#141414] pl-9 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black w-full"
+                  className="border border-line pl-9 pr-3 py-2 text-sm bg-surface focus:outline-none focus:ring-1 focus:ring-ink w-full"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Поиск по названию, email, адресу..."
@@ -431,9 +431,7 @@ export default function Counterparties() {
                       key={tag}
                       type="button"
                       onClick={() => toggleTag(tag)}
-                      className={`text-[11px] font-bold px-2 py-1 border border-[#141414] transition-colors ${
-                        selected ? 'bg-[#141414] text-[#E4E3E0]' : 'bg-white hover:bg-black/5'
-                      }`}
+                      className={`btn-brutal px-2 py-1 text-[11px] ${selected ? 'btn-brutal-active' : ''}`}
                     >
                       {tag}
                     </button>
@@ -449,8 +447,8 @@ export default function Counterparties() {
             </section>
           </aside>
 
-          <section className="xl:col-span-8 bg-white border border-[#141414] min-h-[520px]">
-            <div className="p-4 border-b border-[#141414] flex items-center justify-between gap-3 bg-black/5">
+          <section className="xl:col-span-8 bg-surface border border-line min-h-[520px]">
+            <div className="p-4 border-b border-line flex items-center justify-between gap-3 bg-ink/5">
               <div>
                 <h2 className="text-sm uppercase font-bold">Контрагенты</h2>
                 <p className="text-[10px] opacity-60">
@@ -460,7 +458,7 @@ export default function Counterparties() {
               <Tag className="w-5 h-5 opacity-50" />
             </div>
 
-            <div className="divide-y divide-[#141414]">
+            <div className="divide-y divide-line">
               {loading && (
                 <div className="p-8 text-sm font-bold uppercase opacity-60">Загрузка справочника...</div>
               )}
@@ -473,7 +471,7 @@ export default function Counterparties() {
               )}
 
               {!loading && filteredCounterparties.map((counterparty) => (
-                <article key={counterparty.id} className="p-5 hover:bg-[#E4E3E0]/40 transition-colors">
+                <article key={counterparty.id} className="p-5 hover:bg-page/40 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <h3 className="text-lg font-bold uppercase tracking-tight break-words">{counterparty.companyName}</h3>
@@ -483,7 +481,7 @@ export default function Counterparties() {
                       <button
                         type="button"
                         onClick={() => startEdit(counterparty)}
-                        className="border border-[#141414] bg-white p-2 hover:bg-yellow-100 transition-colors"
+                        className="border border-line bg-surface p-2 hover:bg-yellow-100 transition-colors"
                         title="Редактировать"
                       >
                         <Pencil className="w-4 h-4" />
@@ -491,7 +489,7 @@ export default function Counterparties() {
                       <button
                         type="button"
                         onClick={() => void handleDelete(counterparty)}
-                        className="border border-[#141414] bg-white p-2 hover:bg-red-100 hover:text-red-700 transition-colors"
+                        className="border border-line bg-surface p-2 hover:bg-red-100 hover:text-red-700 transition-colors"
                         title="Удалить"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -541,7 +539,7 @@ export default function Counterparties() {
                   <div className="flex flex-wrap gap-2 mt-4">
                     {counterparty.tags.length === 0 && <span className="text-[10px] opacity-40">Без тегов</span>}
                     {counterparty.tags.map((tag) => (
-                      <span key={tag} className="status-chip bg-white">{tag}</span>
+                      <span key={tag} className="status-chip bg-surface">{tag}</span>
                     ))}
                   </div>
                 </article>

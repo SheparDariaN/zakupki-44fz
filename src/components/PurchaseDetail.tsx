@@ -436,15 +436,15 @@ export default function PurchaseDetail() {
   };
 
   if (loading) {
-    return <div className="mx-auto max-w-6xl border border-dashed border-[#141414] bg-white py-10 text-center text-sm opacity-60">Загрузка карточки...</div>;
+    return <div className="mx-auto max-w-6xl border border-dashed border-line bg-surface py-10 text-center text-sm opacity-60">Загрузка карточки...</div>;
   }
 
   if (!purchase) {
     return (
-      <div className="mx-auto max-w-3xl border border-[#141414] bg-white p-6">
+      <div className="mx-auto max-w-3xl border border-line bg-surface p-6">
         <h2 className="mb-2 text-xl font-bold uppercase tracking-tighter">Закупка недоступна</h2>
         {message && <p className="mb-4 text-sm text-red-700">{message}</p>}
-        <Link to="/purchases" className="btn-brutal inline-flex bg-white text-sm font-bold">К списку закупок</Link>
+        <Link to="/purchases" className="btn-brutal inline-flex bg-surface text-sm font-bold">К списку закупок</Link>
       </div>
     );
   }
@@ -462,26 +462,26 @@ export default function PurchaseDetail() {
         <button
           type="button"
           onClick={() => void fetchContext()}
-          className="btn-brutal flex items-center gap-2 bg-white text-sm font-bold"
+          className="btn-brutal flex items-center gap-2 bg-surface text-sm font-bold"
         >
           <RefreshCw className="h-3.5 w-3.5" /> Обновить
         </button>
       </div>
 
       {message && (
-        <div className={`border border-[#141414] bg-white px-4 py-3 text-sm ${messageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
+        <div className={`border border-line bg-surface px-4 py-3 text-sm ${messageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
           {message}
         </div>
       )}
 
-      <section className="border border-[#141414] bg-white p-6">
+      <section className="border border-line bg-surface p-6">
         <h3 className="mb-4 text-sm font-bold uppercase">Карточка закупки</h3>
         <form onSubmit={savePurchase} className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_180px_140px_auto]">
           <div className="flex flex-col">
             <label className="mb-1 text-[10px] font-bold uppercase opacity-70">Название</label>
             <AutofillSuggestField
               fieldKey="name"
-              className="border border-[#141414] px-3 py-2 text-sm"
+              className="border border-line px-3 py-2 text-sm"
               value={name}
               onChange={setName}
               suggestions={cardNameSuggestions}
@@ -494,7 +494,7 @@ export default function PurchaseDetail() {
             <label className="mb-1 text-[10px] font-bold uppercase opacity-70">Цена</label>
             <AutofillSuggestField
               fieldKey="price"
-              className="border border-[#141414] px-3 py-2 text-sm"
+              className="border border-line px-3 py-2 text-sm"
               value={price}
               onChange={setPrice}
               suggestions={cardPriceSuggestions}
@@ -506,7 +506,7 @@ export default function PurchaseDetail() {
             <label className="mb-1 text-[10px] font-bold uppercase opacity-70">Год лимитов</label>
             <AutofillSuggestField
               fieldKey="budgetYear"
-              className="border border-[#141414] px-3 py-2 text-sm"
+              className="border border-line px-3 py-2 text-sm"
               value={budgetYear}
               onChange={setBudgetYear}
               suggestions={cardBudgetYearSuggestions}
@@ -514,32 +514,32 @@ export default function PurchaseDetail() {
               inputMode="numeric"
             />
           </div>
-          <button type="submit" disabled={saving} className="btn-brutal mt-auto flex items-center justify-center gap-2 bg-[#141414] text-sm font-bold text-white disabled:opacity-50">
+          <button type="submit" disabled={saving} className="btn-brutal btn-brutal-primary mt-auto flex items-center justify-center gap-2 disabled:opacity-50">
             <Save className="h-4 w-4" /> Сохранить
           </button>
         </form>
       </section>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="border border-[#141414] bg-white p-6">
+        <div className="border border-line bg-surface p-6">
           <h3 className="mb-4 text-sm font-bold uppercase">Документы закупки</h3>
           <div className="flex flex-col gap-3">
             {documentKinds.map(kind => {
               const hasState = Boolean(documents[kind]);
               return (
-                <div key={kind} className="flex flex-wrap items-center justify-between gap-3 border border-black/15 p-3">
+                <div key={kind} className="flex flex-wrap items-center justify-between gap-3 border border-ink/15 p-3">
                   <div>
                     <p className="text-sm font-bold">{getDocumentTitle(kind)}</p>
                     <p className="text-[10px] opacity-60">{hasState ? 'Сохранённое состояние есть' : 'Документ ещё не сохранён'}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Link to={`/purchases/${purchase.id}/${kind}`} className="btn-brutal bg-white text-[11px] font-bold">
+                    <Link to={`/purchases/${purchase.id}/${kind}`} className="btn-brutal bg-surface text-[11px] font-bold">
                       {hasState ? 'Открыть' : 'Добавить'}
                     </Link>
-                    <button type="button" disabled={!hasState} onClick={() => void downloadDocument(kind)} className="btn-brutal bg-white text-[11px] font-bold disabled:cursor-not-allowed disabled:opacity-40">
+                    <button type="button" disabled={!hasState} onClick={() => void downloadDocument(kind)} className="btn-brutal bg-surface text-[11px] font-bold disabled:cursor-not-allowed disabled:opacity-40">
                       <Download className="inline h-3.5 w-3.5" /> DOCX
                     </button>
-                    <button type="button" disabled={!hasState} onClick={() => void deleteDocument(kind)} className="p-2 text-black/40 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-30">
+                    <button type="button" disabled={!hasState} onClick={() => void deleteDocument(kind)} className="p-2 text-ink/40 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-30">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -549,11 +549,11 @@ export default function PurchaseDetail() {
           </div>
         </div>
 
-        <div className="border border-[#141414] bg-white p-6">
+        <div className="border border-line bg-surface p-6">
           <h3 className="mb-4 text-sm font-bold uppercase">Контракт</h3>
           <p className="mb-4 text-[11px] opacity-60">Загрузите PDF или DOCX. Повторная загрузка заменяет предыдущий файл.</p>
           <div className="flex flex-col gap-3">
-            <div className="border border-[#141414]/30 bg-black/5 px-3 py-2 text-[11px]">
+            <div className="border border-line/30 bg-ink/5 px-3 py-2 text-[11px]">
               {hasContract ? (
                 <>
                   <span className="font-bold">Файл загружен:</span> {contract?.fileName}
@@ -567,16 +567,16 @@ export default function PurchaseDetail() {
               type="file"
               accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               onChange={event => setContractFile(event.target.files?.[0] || null)}
-              className="border border-[#141414] bg-white px-3 py-2 text-sm"
+              className="border border-line bg-surface px-3 py-2 text-sm"
             />
             <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={!contractFile || contractBusy} onClick={() => void uploadContract()} className="btn-brutal flex items-center gap-2 bg-[#141414] text-sm font-bold text-white disabled:opacity-50">
+              <button type="button" disabled={!contractFile || contractBusy} onClick={() => void uploadContract()} className="btn-brutal btn-brutal-primary flex items-center gap-2 disabled:opacity-50">
                 <Upload className="h-4 w-4" /> Загрузить
               </button>
-              <button type="button" disabled={!hasContract || contractBusy} onClick={() => void downloadContract()} className="btn-brutal flex items-center gap-2 bg-white text-sm font-bold disabled:opacity-50">
+              <button type="button" disabled={!hasContract || contractBusy} onClick={() => void downloadContract()} className="btn-brutal flex items-center gap-2 bg-surface text-sm font-bold disabled:opacity-50">
                 <Download className="h-4 w-4" /> Скачать
               </button>
-              <button type="button" disabled={!hasContract || contractBusy} onClick={() => void deleteContract()} className="btn-brutal flex items-center gap-2 bg-white text-sm font-bold text-red-700 disabled:opacity-50">
+              <button type="button" disabled={!hasContract || contractBusy} onClick={() => void deleteContract()} className="btn-brutal flex items-center gap-2 bg-surface text-sm font-bold text-red-700 disabled:opacity-50">
                 <Trash2 className="h-4 w-4" /> Удалить
               </button>
             </div>
@@ -584,39 +584,39 @@ export default function PurchaseDetail() {
         </div>
       </section>
 
-      <section className="border border-[#141414] bg-white p-6">
+      <section className="border border-line bg-surface p-6">
         <h3 className="mb-4 text-sm font-bold uppercase">Ссылки закупки</h3>
         <form onSubmit={createLink} className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
-          <input className="border border-[#141414] px-3 py-2 text-sm" value={newLinkUrl} onChange={event => setNewLinkUrl(event.target.value)} placeholder="https://..." required />
-          <input className="border border-[#141414] px-3 py-2 text-sm" value={newLinkTitle} onChange={event => setNewLinkTitle(event.target.value)} placeholder="Название ссылки" />
-          <button type="submit" className="btn-brutal flex items-center justify-center gap-2 bg-white text-sm font-bold">
+          <input className="border border-line px-3 py-2 text-sm" value={newLinkUrl} onChange={event => setNewLinkUrl(event.target.value)} placeholder="https://..." required />
+          <input className="border border-line px-3 py-2 text-sm" value={newLinkTitle} onChange={event => setNewLinkTitle(event.target.value)} placeholder="Название ссылки" />
+          <button type="submit" className="btn-brutal flex items-center justify-center gap-2 bg-surface text-sm font-bold">
             <Plus className="h-4 w-4" /> Добавить
           </button>
         </form>
 
         {links.length === 0 ? (
-          <div className="border border-dashed border-[#141414] py-8 text-center text-sm opacity-60">Ссылок пока нет</div>
+          <div className="border border-dashed border-line py-8 text-center text-sm opacity-60">Ссылок пока нет</div>
         ) : (
           <div className="flex flex-col gap-3">
             {links.map(link => (
-              <div key={link.id} className="grid grid-cols-1 gap-2 border border-black/15 p-3 md:grid-cols-[1fr_1fr_auto]">
+              <div key={link.id} className="grid grid-cols-1 gap-2 border border-ink/15 p-3 md:grid-cols-[1fr_1fr_auto]">
                 <input
-                  className="border border-[#141414] px-3 py-2 text-sm"
+                  className="border border-line px-3 py-2 text-sm"
                   value={link.url}
                   onChange={event => setLinks(prev => prev.map(item => item.id === link.id ? { ...item, url: event.target.value } : item))}
                   onBlur={() => void updateLink(link.id)}
                 />
                 <input
-                  className="border border-[#141414] px-3 py-2 text-sm"
+                  className="border border-line px-3 py-2 text-sm"
                   value={link.title}
                   onChange={event => setLinks(prev => prev.map(item => item.id === link.id ? { ...item, title: event.target.value } : item))}
                   onBlur={() => void updateLink(link.id)}
                 />
                 <div className="flex gap-2">
-                  <a href={link.url} target="_blank" rel="noreferrer" className="p-2 text-black/50 hover:bg-black/5 hover:text-black" title="Открыть ссылку">
+                  <a href={link.url} target="_blank" rel="noreferrer" className="p-2 text-ink/50 hover:bg-ink/5 hover:text-ink" title="Открыть ссылку">
                     <ExternalLink className="h-4 w-4" />
                   </a>
-                  <button type="button" onClick={() => void deleteLink(link)} className="p-2 text-black/40 hover:bg-red-50 hover:text-red-700" title="Удалить ссылку">
+                  <button type="button" onClick={() => void deleteLink(link)} className="p-2 text-ink/40 hover:bg-red-50 hover:text-red-700" title="Удалить ссылку">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>

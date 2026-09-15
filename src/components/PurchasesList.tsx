@@ -125,7 +125,7 @@ export default function PurchasesList() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 pb-8">
-      <section className="border border-[#141414] bg-white p-6">
+      <section className="border border-line bg-surface p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold uppercase tracking-tighter">Закупки</h2>
@@ -134,23 +134,23 @@ export default function PurchasesList() {
           <button
             type="button"
             onClick={() => void fetchPurchases()}
-            className="btn-brutal flex items-center gap-2 bg-white text-sm font-bold"
+            className="btn-brutal flex items-center gap-2 bg-surface text-sm font-bold"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Обновить
           </button>
         </div>
 
         {message && (
-          <div className={`mb-4 border border-[#141414] bg-white px-4 py-3 text-sm ${messageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
+          <div className={`mb-4 border border-line bg-surface px-4 py-3 text-sm ${messageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
             {message}
           </div>
         )}
 
-        <form onSubmit={createPurchase} className="grid grid-cols-1 gap-3 border border-[#141414] bg-[#E4E3E0] p-4 md:grid-cols-[1fr_160px_140px_auto]">
+        <form onSubmit={createPurchase} className="grid grid-cols-1 gap-3 border border-line bg-page p-4 md:grid-cols-[1fr_160px_140px_auto]">
           <div className="flex flex-col">
             <label className="mb-1 text-[10px] font-bold uppercase opacity-70">Название</label>
             <input
-              className="border border-[#141414] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+              className="border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink"
               value={name}
               onChange={event => setName(event.target.value)}
               placeholder="Новая закупка"
@@ -159,7 +159,7 @@ export default function PurchasesList() {
           <div className="flex flex-col">
             <label className="mb-1 text-[10px] font-bold uppercase opacity-70">Цена</label>
             <input
-              className="border border-[#141414] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+              className="border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink"
               value={price}
               onChange={event => setPrice(event.target.value)}
               inputMode="decimal"
@@ -169,7 +169,7 @@ export default function PurchasesList() {
           <div className="flex flex-col">
             <label className="mb-1 text-[10px] font-bold uppercase opacity-70">Год лимитов</label>
             <input
-              className="border border-[#141414] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+              className="border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink"
               value={budgetYear || currentYear}
               onChange={event => setBudgetYear(event.target.value)}
               inputMode="numeric"
@@ -178,22 +178,22 @@ export default function PurchasesList() {
           <button
             type="submit"
             disabled={saving}
-            className="btn-brutal mt-auto flex items-center justify-center gap-2 bg-[#141414] text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-brutal btn-brutal-primary mt-auto flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Plus className="h-4 w-4" /> Добавить закупку
           </button>
         </form>
       </section>
 
-      <section className="border border-[#141414] bg-white p-6">
+      <section className="border border-line bg-surface p-6">
         {loading ? (
-          <div className="border border-dashed border-[#141414] py-10 text-center text-sm opacity-60">Загрузка закупок...</div>
+          <div className="border border-dashed border-line py-10 text-center text-sm opacity-60">Загрузка закупок...</div>
         ) : purchases.length === 0 ? (
-          <div className="border border-dashed border-[#141414] py-10 text-center text-sm opacity-60">Закупок пока нет</div>
+          <div className="border border-dashed border-line py-10 text-center text-sm opacity-60">Закупок пока нет</div>
         ) : (
           <div className="flex flex-col gap-3">
             {purchases.map(purchase => (
-              <div key={purchase.id} className="grid grid-cols-1 gap-4 border border-black/15 p-4 transition-colors hover:border-black md:grid-cols-[1fr_auto]">
+              <div key={purchase.id} className="grid grid-cols-1 gap-4 border border-ink/15 p-4 transition-colors hover:border-ink md:grid-cols-[1fr_auto]">
                 <Link to={`/purchases/${purchase.id}`} className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <h3 className="truncate text-base font-bold">{purchase.name}</h3>
@@ -215,7 +215,7 @@ export default function PurchasesList() {
                 <button
                   type="button"
                   onClick={() => void deletePurchase(purchase)}
-                  className="self-start p-2 text-black/40 transition-colors hover:bg-red-50 hover:text-red-700"
+                  className="self-start p-2 text-ink/40 transition-colors hover:bg-red-50 hover:text-red-700"
                   title="Удалить закупку"
                 >
                   <Trash2 className="h-5 w-5" />

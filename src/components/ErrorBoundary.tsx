@@ -21,8 +21,8 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-[#E4E3E0] flex items-center justify-center p-8 font-sans text-[#141414]">
-          <div className="bg-white border border-[#141414] p-8 max-w-md w-full text-center">
+        <div className="min-h-screen bg-page flex items-center justify-center p-8 font-sans text-ink">
+          <div className="bg-surface border border-line p-8 max-w-md w-full text-center">
             <h1 className="text-xl font-bold uppercase tracking-tighter mb-2">Произошла ошибка</h1>
             <p className="text-sm opacity-70 mb-6">
               Не удалось отобразить страницу. Попробуйте обновить её или вернуться на главную.
@@ -30,14 +30,14 @@ export default class ErrorBoundary extends Component<Props, State> {
             <div className="flex gap-3 justify-center flex-wrap">
               <a
                 href="/"
-                className="border border-[#141414] px-4 py-2 text-sm font-bold uppercase hover:bg-black/5"
+                className="btn-brutal"
               >
                 На главную
               </a>
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="bg-[#141414] text-white px-4 py-2 text-sm font-bold uppercase hover:bg-black/80"
+                className="btn-brutal btn-brutal-primary"
               >
                 Обновить страницу
               </button>

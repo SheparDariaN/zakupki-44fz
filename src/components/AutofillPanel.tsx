@@ -90,8 +90,8 @@ export default function AutofillPanel({
   };
 
   return (
-    <section className="border border-[#141414] bg-white/60 shrink-0 shadow-sm">
-      <div className="p-3 border-b border-[#141414] bg-black/5 flex flex-col gap-2">
+    <section className="border border-line bg-surface/60 shrink-0 shadow-sm">
+      <div className="p-3 border-b border-line bg-ink/5 flex flex-col gap-2">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-[11px] uppercase font-bold">{title}</h2>
@@ -102,7 +102,7 @@ export default function AutofillPanel({
           </span>
         </div>
         {contextNote && (
-          <p className="text-[10px] bg-white border border-[#141414]/30 px-2 py-1">{contextNote}</p>
+          <p className="text-[10px] bg-surface border border-line/30 px-2 py-1">{contextNote}</p>
         )}
       </div>
 
@@ -111,7 +111,7 @@ export default function AutofillPanel({
         <select
           value={selectedSource}
           onChange={(event) => onSourceChange(event.target.value as 'all' | AutofillSourceKind)}
-          className="w-full border border-[#141414] bg-white px-2 py-1.5 text-xs focus:outline-none"
+          className="w-full border border-line bg-surface px-2 py-1.5 text-xs focus:outline-none"
         >
           {sourceOptions.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
@@ -157,7 +157,7 @@ export default function AutofillPanel({
           </div>
         )}
 
-        <div className="max-h-56 overflow-auto border border-[#141414]/30 bg-white">
+        <div className="max-h-56 overflow-auto border border-line/30 bg-surface">
           {suggestions.length === 0 && (
             <p className="p-3 text-[10px] opacity-60">Нет предложений для выбранного источника.</p>
           )}
@@ -167,7 +167,7 @@ export default function AutofillPanel({
           {visibleSuggestions.map((suggestion) => {
             const key = suggestionKey(suggestion);
             return (
-              <div key={key} className="border-b border-[#141414]/20 p-2 last:border-b-0">
+              <div key={key} className="border-b border-line/20 p-2 last:border-b-0">
                 <div className="flex items-start gap-2">
                   <input
                     type="checkbox"
@@ -183,12 +183,12 @@ export default function AutofillPanel({
                         <p className="text-[9px] opacity-60">{suggestion.sourceLabel}; {suggestion.reason}</p>
                       </div>
                       {suggestion.willOverwrite && (
-                        <span className="text-[9px] font-bold uppercase bg-yellow-100 border border-[#141414]/30 px-1">
+                        <span className="text-[9px] font-bold uppercase bg-yellow-100 border border-line/30 px-1">
                           замена
                         </span>
                       )}
                     </div>
-                    <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug font-sans bg-black/5 p-2 max-h-24 overflow-hidden">
+                    <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug font-sans bg-ink/5 p-2 max-h-24 overflow-hidden">
                       {previewAutofillSuggestion(suggestion)}
                     </pre>
                   </div>
@@ -202,7 +202,7 @@ export default function AutofillPanel({
           type="button"
           onClick={() => onApply(selectedFieldKeys)}
           disabled={disabled || visibleSuggestions.length === 0 || selectedCount === 0}
-          className="border border-[#141414] bg-[#141414] text-white px-3 py-2 text-[10px] font-bold uppercase hover:bg-white hover:text-[#141414] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn-brutal btn-brutal-primary text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Применить предложения
         </button>

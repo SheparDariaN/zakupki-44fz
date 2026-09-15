@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Download, RefreshCw, Save, User } from 'lucide-react';
 import { ServiceMemoData, type PurchaseContext } from '../types';
 import AppNav from './AppNav';
+import ThemeToggle from './ThemeToggle';
 import ServiceMemoPreview from './ServiceMemoPreview';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
@@ -188,8 +189,8 @@ export default function ServiceMemo() {
   };
 
   const labelClass = "text-[9px] uppercase opacity-60 mb-1 font-bold";
-  const fieldClass = "bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors";
-  const textareaClass = "w-full bg-transparent border border-[#141414] px-2 py-1.5 text-xs focus:outline-none focus:bg-white resize-none";
+  const fieldClass = "bg-transparent border-b border-ink/30 hover:border-ink focus:border-ink text-xs py-1.5 focus:outline-none w-full transition-colors";
+  const textareaClass = "w-full bg-transparent border border-line px-2 py-1.5 text-xs focus:outline-none focus:bg-surface resize-none";
   const normalizedData = useMemo(
     () => normalizeMemoState(syncMemoRequesterInflection(data, userSettings)),
     [data, userSettings]
@@ -203,31 +204,32 @@ export default function ServiceMemo() {
   );
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#E4E3E0] text-[#141414] font-sans overflow-hidden p-6">
-      <header className="flex justify-between items-center mb-6 pb-4 border-b border-[#141414] shrink-0 gap-4">
+    <div className="flex flex-col h-screen w-full bg-page text-ink font-sans overflow-hidden p-6">
+      <header className="flex justify-between items-center mb-6 pb-4 border-b border-line shrink-0 gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold uppercase tracking-tighter">Служебная записка на закупку</h1>
         </div>
         <div className="flex gap-3 items-center shrink-0 flex-wrap justify-end">
           <AppNav />
-          <a href="/cabinet" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
+          <ThemeToggle />
+          <a href="/cabinet" className="btn-brutal flex items-center gap-2 text-sm font-bold">
             <User className="w-4 h-4" /> Личный кабинет
           </a>
-          <button onClick={resetState} className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-yellow-100 text-sm font-bold">
+          <button onClick={resetState} className="btn-brutal bg-surface border border-line flex items-center gap-2 hover:bg-yellow-100 text-sm font-bold">
             <RefreshCw className="w-3.5 h-3.5" /> Сбросить
           </button>
           <button
             type="button"
             onClick={() => void saveDocumentState()}
             disabled={isSaving}
-            className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-green-50 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-brutal bg-surface border border-line flex items-center gap-2 hover:bg-green-50 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="w-3.5 h-3.5" /> {isSaving ? 'Сохранение...' : 'Сохранить'}
           </button>
           <button
             onClick={handleGenerate}
             disabled={isGenerating || !canGenerate}
-            className="border border-[#141414] bg-[#141414] text-white px-4 py-2 text-sm font-bold uppercase flex items-center gap-2 hover:bg-white hover:text-[#141414] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-brutal btn-brutal-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
             {isGenerating ? 'Создание...' : 'Сгенерировать DOCX'}
@@ -236,7 +238,7 @@ export default function ServiceMemo() {
       </header>
 
       {downloadMessage && (
-        <div className={`mb-4 border border-[#141414] bg-white px-4 py-3 text-sm ${downloadMessageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
+        <div className={`mb-4 border border-line bg-surface px-4 py-3 text-sm ${downloadMessageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
           {downloadMessage}
         </div>
       )}
@@ -261,7 +263,7 @@ export default function ServiceMemo() {
             contextNote={`НМЦК: ${describeCurrentPurchase(currentPurchase)}`}
           />
 
-          <section className="bg-white/50 p-5 border border-[#141414] shrink-0 shadow-sm transition-all hover:bg-white/80">
+          <section className="bg-surface/50 p-5 border border-line shrink-0 shadow-sm transition-all hover:bg-surface/80">
             <h2 className="text-[11px] uppercase font-bold mb-4">Шапка документа</h2>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col">
@@ -319,9 +321,9 @@ export default function ServiceMemo() {
             </div>
           </section>
 
-          <section className="bg-white/50 p-5 border border-[#141414] shrink-0 shadow-sm transition-all hover:bg-white/80">
+          <section className="bg-surface/50 p-5 border border-line shrink-0 shadow-sm transition-all hover:bg-surface/80">
             <h2 className="text-[11px] uppercase font-bold mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-black rounded-full animate-pulse"></span> Цель закупки
+              <span className="w-2 h-2 bg-ink rounded-full animate-pulse"></span> Цель закупки
             </h2>
             <AutofillSuggestField
               fieldKey="purpose"
@@ -339,7 +341,7 @@ export default function ServiceMemo() {
             </p>
           </section>
 
-          <section className="bg-white/50 p-5 border border-[#141414] shrink-0 shadow-sm transition-all hover:bg-white/80">
+          <section className="bg-surface/50 p-5 border border-line shrink-0 shadow-sm transition-all hover:bg-surface/80">
             <h2 className="text-[11px] uppercase font-bold mb-4">Предмет закупки</h2>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col">

@@ -19,7 +19,7 @@ export default function ServiceMemoPreview({ data }: PreviewProps) {
   const signature = getServiceMemoSignatureBlock(normalizedData);
 
   return (
-    <div className="animate-in fade-in duration-300 w-[210mm] min-w-[210mm] min-h-[297mm] mx-auto bg-white shadow-[0_10px_30px_rgba(0,0,0,0.1)] pt-[20mm] pr-[20mm] pb-[20mm] pl-[30mm] text-[12pt] font-serif leading-normal">
+    <div className="paper-sheet animate-in fade-in duration-300 w-[210mm] min-w-[210mm] min-h-[297mm] mx-auto bg-white shadow-[0_10px_30px_rgba(0,0,0,0.1)] pt-[20mm] pr-[20mm] pb-[20mm] pl-[30mm] text-[12pt] font-serif leading-normal">
       <div className="mb-12 pl-[110mm]">
         {headerLines.map((line, index) => (
           <p key={`${index}-${line}`} className="whitespace-pre-wrap">

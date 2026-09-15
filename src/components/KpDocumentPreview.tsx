@@ -11,7 +11,7 @@ export default function KpDocumentPreview({ data, vendorIndex }: PreviewProps) {
   const normalizedData = React.useMemo(() => normalizeKpState(data), [data]);
 
   return (
-    <div className="animate-in fade-in duration-300 w-[210mm] min-w-[210mm] min-h-[297mm] mx-auto bg-white shadow-[0_10px_30px_rgba(0,0,0,0.1)] pt-[20mm] pr-[15mm] pb-[20mm] pl-[30mm] text-[10pt] font-serif leading-tight">
+    <div className="paper-sheet animate-in fade-in duration-300 w-[210mm] min-w-[210mm] min-h-[297mm] mx-auto bg-white shadow-[0_10px_30px_rgba(0,0,0,0.1)] pt-[20mm] pr-[15mm] pb-[20mm] pl-[30mm] text-[10pt] font-serif leading-tight">
       <div className="text-center font-bold text-[14pt] mb-1 leading-tight">
         <p>ГОСУДАРСТВЕННОЕ КАЗЕННОЕ УЧРЕЖДЕНИЕ</p>
         <p>«ЦЕНТР ИНФОРМАЦИОННЫХ ТЕХНОЛОГИЙ КУЗБАССА»</p>

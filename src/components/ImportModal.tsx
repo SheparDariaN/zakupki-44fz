@@ -38,18 +38,18 @@ export default function ImportModal({ suppliers, onClose, onImport }: ImportModa
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#141414]/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       role="presentation"
       onClick={handleBackdropClick}
     >
       <form
-        className="w-full max-w-3xl border border-[#141414] bg-[#E4E3E0] p-5 shadow-[8px_8px_0_#141414]"
+        className="w-full max-w-3xl border border-line bg-page p-5 shadow-[8px_8px_0_var(--ink)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="import-modal-title"
         onSubmit={handleSubmit}
       >
-        <div className="mb-4 flex items-start justify-between gap-4 border-b border-[#141414] pb-3">
+        <div className="mb-4 flex items-start justify-between gap-4 border-b border-line pb-3">
           <div>
             <h2 id="import-modal-title" className="text-sm font-bold uppercase tracking-tighter">
               Импорт из Excel
@@ -60,7 +60,7 @@ export default function ImportModal({ suppliers, onClose, onImport }: ImportModa
           </div>
           <button
             type="button"
-            className="border border-[#141414] bg-white p-2 hover:bg-[#141414] hover:text-[#E4E3E0] transition-colors"
+            className="border border-line bg-surface p-2 hover:bg-ink hover:text-page transition-colors"
             aria-label="Закрыть окно импорта"
             onClick={onClose}
           >
@@ -74,7 +74,7 @@ export default function ImportModal({ suppliers, onClose, onImport }: ImportModa
               Данные таблицы
             </span>
             <textarea
-              className="h-64 w-full resize-none border border-[#141414] bg-white px-3 py-2 font-mono text-xs outline-none focus:shadow-[4px_4px_0_#141414]"
+              className="h-64 w-full resize-none border border-line bg-surface px-3 py-2 font-mono text-xs outline-none focus:shadow-[4px_4px_0_var(--ink)]"
               value={text}
               onChange={(event) => setText(event.target.value)}
               placeholder="Наименование&#9;ЕИ&#9;Количество&#9;Поставщик 1&#10;Позиция&#9;шт&#9;1&#9;1234,56"
@@ -82,7 +82,7 @@ export default function ImportModal({ suppliers, onClose, onImport }: ImportModa
             />
           </label>
 
-          <div className="border border-[#141414] bg-white p-3">
+          <div className="border border-line bg-surface p-3">
             <p className="mb-2 text-[9px] font-bold uppercase opacity-60">Порядок колонок</p>
             <ol className="space-y-1 text-xs">
               <li>1. Наименование</li>
@@ -94,7 +94,7 @@ export default function ImportModal({ suppliers, onClose, onImport }: ImportModa
                 </li>
               ))}
             </ol>
-            <p className="mt-3 border-t border-[#141414]/20 pt-3 text-[11px] leading-relaxed opacity-70">
+            <p className="mt-3 border-t border-line/20 pt-3 text-[11px] leading-relaxed opacity-70">
               Цены можно оставить пустыми. Новые строки будут добавлены к текущим позициям.
             </p>
           </div>
@@ -105,12 +105,12 @@ export default function ImportModal({ suppliers, onClose, onImport }: ImportModa
             Закрытие: Esc или клик по фону
           </p>
           <div className="flex gap-2">
-            <button type="button" className="btn-brutal bg-white" onClick={onClose}>
+            <button type="button" className="btn-brutal bg-surface" onClick={onClose}>
               Отмена
             </button>
             <button
               type="submit"
-              className="border border-[#141414] bg-[#141414] px-4 py-2 text-xs font-bold uppercase text-white transition-colors hover:bg-white hover:text-[#141414] disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-brutal btn-brutal-primary text-xs disabled:cursor-not-allowed disabled:opacity-40"
               disabled={!canImport}
             >
               Импортировать

@@ -7,6 +7,9 @@ const documentLinks = [
   { segment: 'memo', label: 'Служебка' },
 ];
 
+const navClass = (active: boolean) =>
+  `btn-brutal text-[11px] ${active ? 'btn-brutal-active' : ''}`;
+
 export default function AppNav() {
   const location = useLocation();
   const { id } = useParams<{ id: string }>();
@@ -14,37 +17,26 @@ export default function AppNav() {
   if (!id) {
     return (
       <nav className="flex gap-2">
-        <Link
-          to="/purchases"
-          className="border border-[#141414] bg-white px-3 py-1.5 text-[11px] font-bold uppercase transition-colors hover:bg-black/5"
-        >
+        <Link to="/purchases" className={navClass(false)}>
           К закупкам
         </Link>
       </nav>
     );
   }
 
+  const cardTo = `/purchases/${id}`;
+  const cardActive = location.pathname === cardTo;
+
   return (
     <nav className="flex gap-2">
-      <Link
-        to={`/purchases/${id}`}
-        className="border border-[#141414] bg-white px-3 py-1.5 text-[11px] font-bold uppercase transition-colors hover:bg-black/5"
-      >
+      <Link to={cardTo} className={navClass(cardActive)}>
         Карточка
       </Link>
       {documentLinks.map(link => {
         const to = `/purchases/${id}/${link.segment}`;
         const active = location.pathname === to;
         return (
-          <Link
-            key={to}
-            to={to}
-            className={`text-[11px] uppercase font-bold px-3 py-1.5 border border-[#141414] transition-colors ${
-              active
-                ? 'bg-[#141414] text-[#E4E3E0]'
-                : 'bg-white hover:bg-black/5'
-            }`}
-          >
+          <Link key={to} to={to} className={navClass(active)}>
             {link.label}
           </Link>
         );

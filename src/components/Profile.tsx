@@ -145,15 +145,15 @@ export default function Profile() {
   };
 
   return (
-    <div className="pb-8 font-sans text-[#141414]">
+    <div className="pb-8 font-sans text-ink">
       <div className="max-w-5xl mx-auto">
-        <header className="flex justify-between items-center mb-8 border-b border-[#141414] pb-4 gap-4">
+        <header className="flex justify-between items-center mb-8 border-b border-line pb-4 gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold uppercase tracking-tighter">Личный кабинет</h1>
             <p className="text-[10px] opacity-60">Пользователь: {user?.username}</p>
           </div>
           <div className="flex gap-3 items-center shrink-0 flex-wrap justify-end">
-            <button onClick={() => navigate('/cabinet/counterparties')} className="btn-brutal bg-white text-sm font-bold">
+            <button onClick={() => navigate('/cabinet/counterparties')} className="btn-brutal bg-surface text-sm font-bold">
               Контрагенты
             </button>
             {user?.role === 'admin' && (
@@ -163,7 +163,7 @@ export default function Profile() {
         </header>
 
         {message && (
-          <div className={`mb-4 p-3 bg-white border border-[#141414] text-sm ${messageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
+          <div className={`mb-4 p-3 bg-surface border border-line text-sm ${messageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
             {message}
           </div>
         )}
@@ -171,7 +171,7 @@ export default function Profile() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
 
           <aside className="md:col-span-4 flex flex-col gap-8">
-            <section className="bg-white p-6 border border-[#141414]">
+            <section className="bg-surface p-6 border border-line">
               <h2 className="text-sm uppercase font-bold mb-4">Данные по умолчанию</h2>
               <p className="text-[10px] opacity-70 mb-4">Эти данные будут автоматически подставляться в новые документы.</p>
 
@@ -180,7 +180,7 @@ export default function Profile() {
                   <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Заказчик</label>
                   <input
                     type="text"
-                    className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                    className="border border-line px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink"
                     value={settings.customer || ''}
                     onChange={e => setSettings({...settings, customer: e.target.value})}
                   />
@@ -189,7 +189,7 @@ export default function Profile() {
                   <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Должность подписанта</label>
                   <input
                     type="text"
-                    className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                    className="border border-line px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink"
                     value={settings.executorPosition || ''}
                     onChange={e => setSettings({...settings, executorPosition: e.target.value})}
                   />
@@ -206,14 +206,14 @@ export default function Profile() {
                     executorNameDative: value.dative,
                   })}
                 />
-                <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
+                <div className="border-t border-line/20 pt-4 mt-1 flex flex-col gap-4">
                   <p className="text-[10px] uppercase font-bold opacity-60">Руководитель контрактной службы</p>
                   <p className="text-[10px] opacity-60 -mt-2">Подставляется в запрос КП как подписант и в служебную записку.</p>
                   <div className="flex flex-col">
                     <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Должность</label>
                     <input
                       type="text"
-                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                      className="border border-line px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink"
                       value={settings.contractServiceHeadPosition || ''}
                       onChange={e => setSettings({...settings, contractServiceHeadPosition: e.target.value})}
                       placeholder="Руководитель контрактной службы"
@@ -232,14 +232,14 @@ export default function Profile() {
                     })}
                   />
                 </div>
-                <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
+                <div className="border-t border-line/20 pt-4 mt-1 flex flex-col gap-4">
                   <p className="text-[10px] uppercase font-bold opacity-60">Контакты для запроса КП</p>
                   <p className="text-[10px] opacity-60 -mt-2">В запросе КП e-mail и контактные лица заполняются вместе: к ФИО добавляется телефон в формате «т. n».</p>
                   <div className="flex flex-col">
                     <label className="text-[10px] uppercase font-bold mb-1 opacity-70">E-mail для приема КП</label>
                     <input
                       type="text"
-                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                      className="border border-line px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink"
                       value={settings.submissionEmail || ''}
                       onChange={e => setSettings({...settings, submissionEmail: e.target.value})}
                     />
@@ -260,13 +260,13 @@ export default function Profile() {
                     <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Телефон контактного лица</label>
                     <input
                       type="text"
-                      className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                      className="border border-line px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink"
                       value={settings.contactPhone || ''}
                       onChange={e => setSettings({...settings, contactPhone: e.target.value})}
                     />
                   </div>
                 </div>
-                <div className="border-t border-[#141414]/20 pt-4 mt-1 flex flex-col gap-4">
+                <div className="border-t border-line/20 pt-4 mt-1 flex flex-col gap-4">
                   <div className="flex justify-between items-center gap-2">
                     <div>
                       <p className="text-[10px] uppercase font-bold opacity-60">Типовые условия</p>
@@ -284,7 +284,7 @@ export default function Profile() {
                     </button>
                   </div>
                   {settings.defaultServiceConditions.length === 0 ? (
-                    <p className="text-[10px] opacity-50 border border-dashed border-[#141414] px-3 py-4 text-center">
+                    <p className="text-[10px] opacity-50 border border-dashed border-line px-3 py-4 text-center">
                       Нет пунктов. Добавьте типовое условие.
                     </p>
                   ) : (
@@ -293,7 +293,7 @@ export default function Profile() {
                         <span className="font-bold mt-2 text-xs shrink-0">{index + 1}.</span>
                         <textarea
                           rows={3}
-                          className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black resize-none flex-1"
+                          className="border border-line px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink resize-none flex-1"
                           value={condition}
                           onChange={e => {
                             const next = [...settings.defaultServiceConditions];
@@ -307,7 +307,7 @@ export default function Profile() {
                             ...prev,
                             defaultServiceConditions: prev.defaultServiceConditions.filter((_, i) => i !== index),
                           }))}
-                          className="absolute top-2 right-2 text-black/30 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100"
+                          className="absolute top-2 right-2 text-ink/30 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100"
                           title="Удалить пункт"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -316,25 +316,25 @@ export default function Profile() {
                     ))
                   )}
                 </div>
-                <button type="submit" className="mt-2 bg-[#141414] text-white py-2 text-sm font-bold uppercase hover:bg-black/80 transition-colors">
+                <button type="submit" className="btn-brutal btn-brutal-primary mt-2">
                   Сохранить
                 </button>
               </form>
             </section>
 
-            <section className="bg-white p-6 border border-[#141414]">
+            <section className="bg-surface p-6 border border-line">
               <h2 className="text-sm uppercase font-bold mb-4">Смена пароля</h2>
               <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
                 <input
                   type="password"
                   placeholder="Новый пароль"
-                  className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                  className="border border-line px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
                   required
                   minLength={5}
                 />
-                <button type="submit" className="bg-[#141414] text-white py-2 text-sm font-bold uppercase hover:bg-black/80 transition-colors">
+                <button type="submit" className="btn-brutal btn-brutal-primary">
                   Изменить
                 </button>
               </form>
@@ -342,13 +342,13 @@ export default function Profile() {
           </aside>
 
           <main className="md:col-span-8 flex flex-col gap-8">
-            <section className="bg-white p-6 border border-[#141414]">
+            <section className="bg-surface p-6 border border-line">
               <h2 className="text-sm uppercase font-bold mb-4">Разделы кабинета</h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => navigate('/cabinet/counterparties')}
-                  className="border border-[#141414] p-4 text-left hover:bg-black/5 transition-colors"
+                  className="border border-line p-4 text-left hover:bg-ink/5 transition-colors"
                 >
                   <span className="block text-sm font-bold uppercase">Контрагенты</span>
                   <span className="text-[11px] opacity-60">Справочник организаций для запросов КП.</span>
@@ -357,7 +357,7 @@ export default function Profile() {
                   <button
                     type="button"
                     onClick={() => navigate('/admin')}
-                    className="border border-[#141414] p-4 text-left hover:bg-black/5 transition-colors"
+                    className="border border-line p-4 text-left hover:bg-ink/5 transition-colors"
                   >
                     <span className="block text-sm font-bold uppercase">Админ-панель</span>
                     <span className="text-[11px] opacity-60">Пользователи и роли.</span>

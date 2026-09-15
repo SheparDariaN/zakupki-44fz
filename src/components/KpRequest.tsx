@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Counterparty, KpDocxData, type PurchaseContext } from '../types';
 import KpDocumentPreview from './KpDocumentPreview';
 import AppNav from './AppNav';
+import ThemeToggle from './ThemeToggle';
 import { Trash2, Plus, RefreshCw, Download, User, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
@@ -356,39 +357,40 @@ export default function KpRequest() {
   };
 
   const labelClass = "text-[9px] uppercase opacity-60 mb-1 font-bold";
-  const fieldClass = "bg-transparent border-b border-black/30 hover:border-black focus:border-black text-xs py-1.5 focus:outline-none w-full transition-colors";
-  const textareaClass = "w-full bg-transparent border border-[#141414] px-2 py-1.5 text-xs focus:outline-none focus:bg-white resize-none";
+  const fieldClass = "bg-transparent border-b border-ink/30 hover:border-ink focus:border-ink text-xs py-1.5 focus:outline-none w-full transition-colors";
+  const textareaClass = "w-full bg-transparent border border-line px-2 py-1.5 text-xs focus:outline-none focus:bg-surface resize-none";
   const normalizedData = useMemo(() => normalizeKpState(data), [data]);
   const vendorCount = normalizedData.vendorInfos.filter(v => v.trim()).length;
   const canUseSelectedCounterparty = Boolean(getSelectedCounterparty());
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#E4E3E0] text-[#141414] font-sans overflow-hidden p-6">
+    <div className="flex flex-col h-screen w-full bg-page text-ink font-sans overflow-hidden p-6">
 
-      <header className="flex justify-between items-center mb-6 pb-4 border-b border-[#141414] shrink-0 gap-4">
+      <header className="flex justify-between items-center mb-6 pb-4 border-b border-line shrink-0 gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold uppercase tracking-tighter">Запрос коммерческих предложений</h1>
         </div>
         <div className="flex gap-3 items-center shrink-0 flex-wrap justify-end">
           <AppNav />
-          <a href="/cabinet" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
+          <ThemeToggle />
+          <a href="/cabinet" className="btn-brutal flex items-center gap-2 text-sm font-bold">
             <User className="w-4 h-4" /> Личный кабинет
           </a>
-          <button onClick={resetState} className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-yellow-100 text-sm font-bold">
+          <button onClick={resetState} className="btn-brutal bg-surface border border-line flex items-center gap-2 hover:bg-yellow-100 text-sm font-bold">
             <RefreshCw className="w-3.5 h-3.5" /> Сбросить
           </button>
           <button
             type="button"
             onClick={() => void saveDocumentState()}
             disabled={isSaving}
-            className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-green-50 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-brutal bg-surface border border-line flex items-center gap-2 hover:bg-green-50 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="w-3.5 h-3.5" /> {isSaving ? 'Сохранение...' : 'Сохранить'}
           </button>
           <button
             onClick={handleGenerate}
             disabled={isGenerating || vendorCount === 0}
-            className="border border-[#141414] bg-[#141414] text-white px-4 py-2 text-sm font-bold uppercase flex items-center gap-2 hover:bg-white hover:text-[#141414] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-brutal btn-brutal-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
             {isGenerating
@@ -401,7 +403,7 @@ export default function KpRequest() {
       </header>
 
       {downloadMessage && (
-        <div className={`mb-4 border border-[#141414] bg-white px-4 py-3 text-sm ${downloadMessageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
+        <div className={`mb-4 border border-line bg-surface px-4 py-3 text-sm ${downloadMessageError ? 'text-red-700' : 'text-green-700 font-bold'}`}>
           {downloadMessage}
         </div>
       )}
@@ -428,15 +430,15 @@ export default function KpRequest() {
             contextNote={`НМЦК: ${describeCurrentPurchase(currentPurchase)}`}
           />
 
-          <section className="flex flex-col border border-[#141414] bg-white/40 shrink-0 shadow-sm transition-all hover:bg-white/60">
-            <div className="p-3 border-b border-[#141414] flex justify-between items-center shrink-0 bg-black/5">
+          <section className="flex flex-col border border-line bg-surface/40 shrink-0 shadow-sm transition-all hover:bg-surface/60">
+            <div className="p-3 border-b border-line flex justify-between items-center shrink-0 bg-ink/5">
               <h2 className="text-[11px] uppercase font-bold">Исполнители (Кому)</h2>
               <button onClick={addVendor} className="text-[10px] font-bold flex items-center gap-1 hover:text-blue-600 transition-colors">
                 <Plus className="w-3.5 h-3.5" /> Добавить
               </button>
             </div>
             <div className="p-3 flex flex-col gap-3">
-              <div className="border border-[#141414]/30 bg-white/70 p-3 flex flex-col gap-2">
+              <div className="border border-line/30 bg-surface/70 p-3 flex flex-col gap-2">
                 <label className={labelClass}>Выбор из справочника</label>
                 <input
                   type="text"
@@ -444,14 +446,14 @@ export default function KpRequest() {
                   onChange={(e) => setCounterpartySearch(e.target.value)}
                   placeholder="Поиск по названию или тегу..."
                   disabled={counterpartiesLoading || counterparties.length === 0}
-                  className="w-full border border-[#141414] bg-white px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                  className="w-full border border-line bg-surface px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
                 />
                 {availableCounterpartyTags.length > 0 && (
                   <select
                     value={selectedCounterpartyTag}
                     onChange={(e) => setSelectedCounterpartyTag(e.target.value)}
                     disabled={counterpartiesLoading}
-                    className="w-full border border-[#141414] bg-white px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                    className="w-full border border-line bg-surface px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
                   >
                     <option value="">Все теги</option>
                     {availableCounterpartyTags.map((tag) => (
@@ -465,7 +467,7 @@ export default function KpRequest() {
                   value={selectedCounterpartyId}
                   onChange={(e) => setSelectedCounterpartyId(e.target.value)}
                   disabled={counterpartiesLoading || filteredCounterparties.length === 0}
-                  className="w-full border border-[#141414] bg-white px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                  className="w-full border border-line bg-surface px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
                 >
                   {filteredCounterparties.length === 0 && (
                     <option value="">
@@ -501,7 +503,7 @@ export default function KpRequest() {
                     type="button"
                     onClick={addSelectedCounterparty}
                     disabled={!canUseSelectedCounterparty}
-                    className="border border-[#141414] bg-white px-2 py-1.5 text-[10px] font-bold uppercase hover:bg-black/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="border border-line bg-surface px-2 py-1.5 text-[10px] font-bold uppercase hover:bg-ink/5 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Добавить
                   </button>
@@ -509,7 +511,7 @@ export default function KpRequest() {
                     type="button"
                     onClick={replaceCurrentVendorWithCounterparty}
                     disabled={!canUseSelectedCounterparty}
-                    className="border border-[#141414] bg-white px-2 py-1.5 text-[10px] font-bold uppercase hover:bg-yellow-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="border border-line bg-surface px-2 py-1.5 text-[10px] font-bold uppercase hover:bg-yellow-100 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Заменить текущего
                   </button>
@@ -534,7 +536,7 @@ export default function KpRequest() {
                   {data.vendorInfos.length > 1 && (
                     <button
                       onClick={() => removeVendor(index)}
-                      className="absolute top-5 right-2 text-black/30 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100"
+                      className="absolute top-5 right-2 text-ink/30 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100"
                       title="Удалить исполнителя"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -548,9 +550,9 @@ export default function KpRequest() {
             </div>
           </section>
 
-          <section className="bg-white/50 p-5 border border-[#141414] shrink-0 shadow-sm transition-all hover:bg-white/80">
+          <section className="bg-surface/50 p-5 border border-line shrink-0 shadow-sm transition-all hover:bg-surface/80">
             <h2 className="text-[11px] uppercase font-bold mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-black rounded-full animate-pulse"></span> Предмет закупки
+              <span className="w-2 h-2 bg-ink rounded-full animate-pulse"></span> Предмет закупки
             </h2>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col">
@@ -583,8 +585,8 @@ export default function KpRequest() {
             </div>
           </section>
 
-          <section className="flex flex-col border border-[#141414] bg-white/40 shrink-0 shadow-sm transition-all hover:bg-white/60">
-            <div className="p-3 border-b border-[#141414] flex justify-between items-center shrink-0 bg-black/5">
+          <section className="flex flex-col border border-line bg-surface/40 shrink-0 shadow-sm transition-all hover:bg-surface/60">
+            <div className="p-3 border-b border-line flex justify-between items-center shrink-0 bg-ink/5">
               <h2 className="text-[11px] uppercase font-bold">Сроки и состав услуг</h2>
               <button onClick={addCondition} className="text-[10px] font-bold flex items-center gap-1 hover:text-blue-600 transition-colors">
                 <Plus className="w-3.5 h-3.5" /> Добавить пункт
@@ -594,7 +596,7 @@ export default function KpRequest() {
               <p className="text-[10px] opacity-40">Типовые условия из профиля подставляются как пункты этого раздела.</p>
               <div className="flex gap-2 items-start text-xs">
                 <span className="font-bold mt-1 shrink-0">1.</span>
-                <div className="flex-1 leading-relaxed bg-black/5 p-2 border border-[#141414]/20">
+                <div className="flex-1 leading-relaxed bg-ink/5 p-2 border border-line/20">
                   Место оказания услуг: 650064, г. Кемерово, ул. Арочная, 37А, Государственное казенное учреждение «Центр информационных технологий Кузбасса».
                 </div>
               </div>
@@ -610,7 +612,7 @@ export default function KpRequest() {
                   />
                   <button
                     onClick={() => removeCondition(index)}
-                    className="absolute top-2 right-2 text-black/30 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100"
+                    className="absolute top-2 right-2 text-ink/30 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100"
                     title="Удалить пункт"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -620,7 +622,7 @@ export default function KpRequest() {
             </div>
           </section>
 
-          <section className="bg-white/50 p-5 border border-[#141414] shrink-0 shadow-sm transition-all hover:bg-white/80">
+          <section className="bg-surface/50 p-5 border border-line shrink-0 shadow-sm transition-all hover:bg-surface/80">
             <h2 className="text-[11px] uppercase font-bold mb-4">Реквизиты запроса</h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col">
@@ -705,11 +707,11 @@ export default function KpRequest() {
             </span>
             <div className="flex items-center gap-3">
               {data.vendorInfos.length > 1 && (
-                <div className="flex items-center border border-[#141414] bg-white">
+                <div className="flex items-center border border-line bg-surface">
                   <button
                     onClick={() => setPreviewIndex(i => Math.max(0, i - 1))}
                     disabled={previewIndex === 0}
-                    className="p-1 hover:bg-black/5 disabled:opacity-30 transition-colors"
+                    className="p-1 hover:bg-ink/5 disabled:opacity-30 transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -719,7 +721,7 @@ export default function KpRequest() {
                   <button
                     onClick={() => setPreviewIndex(i => Math.min(normalizedData.vendorInfos.length - 1, i + 1))}
                     disabled={previewIndex === normalizedData.vendorInfos.length - 1}
-                    className="p-1 hover:bg-black/5 disabled:opacity-30 transition-colors"
+                    className="p-1 hover:bg-ink/5 disabled:opacity-30 transition-colors"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>

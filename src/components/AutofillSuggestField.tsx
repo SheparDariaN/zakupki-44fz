@@ -91,7 +91,7 @@ export default function AutofillSuggestField({
       )}
 
       {hasSuggestions && open && (
-        <div className="border border-[#141414]/40 bg-white shadow-sm">
+        <div className="border border-line/40 bg-surface shadow-sm">
           {suggestions.map((suggestion, index) => (
             <button
               key={`${suggestionKey(suggestion)}:${index}`}
@@ -101,7 +101,7 @@ export default function AutofillSuggestField({
                 event.preventDefault();
                 handlePick(suggestion);
               }}
-              className="w-full border-b border-[#141414]/20 px-2 py-1.5 text-left text-[10px] last:border-b-0 hover:bg-yellow-50 focus:bg-yellow-50 focus:outline-none"
+              className="w-full border-b border-line/20 px-2 py-1.5 text-left text-[10px] last:border-b-0 hover:bg-yellow-50 focus:bg-yellow-50 focus:outline-none"
             >
               <span className="block whitespace-pre-wrap break-words leading-snug">
                 {getFieldPreview(suggestion, fieldKey)}

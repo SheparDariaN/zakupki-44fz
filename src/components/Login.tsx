@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { readApiError } from '../utils/api';
+import ThemeToggle from './ThemeToggle';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -34,8 +35,11 @@ export default function Login() {
   };
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-[#E4E3E0] font-sans">
-      <div className="bg-white p-8 border border-[#141414] shadow-sm w-[400px]">
+    <div className="relative flex h-screen w-full items-center justify-center bg-page font-sans text-ink">
+      <div className="absolute right-6 top-6">
+        <ThemeToggle />
+      </div>
+      <div className="w-[400px] border border-line bg-surface p-8 shadow-sm">
         <h1 className="text-xl font-bold uppercase tracking-tighter mb-1 text-center">Вход в систему</h1>
         <p className="text-[10px] opacity-60 text-center mb-6">Система обоснования НМЦК</p>
         
@@ -46,7 +50,7 @@ export default function Login() {
             <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Логин</label>
             <input 
               type="text" 
-              className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+              className="border border-line bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-ink"
               value={username}
               onChange={e => setUsername(e.target.value)}
               required
@@ -56,13 +60,13 @@ export default function Login() {
             <label className="text-[10px] uppercase font-bold mb-1 opacity-70">Пароль</label>
             <input 
               type="password" 
-              className="border border-[#141414] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+              className="border border-line bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-ink"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
             />
           </div>
-          <button type="submit" className="mt-2 bg-[#141414] text-white py-2 text-sm font-bold uppercase hover:bg-black/80 transition-colors">
+          <button type="submit" className="btn-brutal btn-brutal-primary mt-2">
             Войти
           </button>
         </form>
