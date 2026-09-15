@@ -7,6 +7,7 @@ import { formatAmountInWords } from '../utils/numberToWords';
 import { Trash2, Plus, RefreshCw, Download, User, FileSpreadsheet, Save } from 'lucide-react';
 import AppNav from './AppNav';
 import ThemeToggle from './ThemeToggle';
+import PurchaseWizardBar from './PurchaseWizardBar';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
 import { applyNmckAutofill, previewAutofillValue, resolveAutofill, suggestionsForField, type AutofillSuggestion, type AutofillUserSettings } from '../documents/autofill';
@@ -18,7 +19,8 @@ import ImportModal from './ImportModal';
 import { buildPurchaseAutofillContext, calculateMinSupplierTotal, saveCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeNmckState } from '../documents/templateNormalization';
 import { applyColumnPaste, importTable, parseColumnPasteValues, parsePrice, type ColumnPasteField } from '../utils/tableImport';
-import { buildOfferSupplierSuggestions } from '../utils/incomingKp';
+import { applyOffersToNmckState, buildOfferSupplierSuggestions } from '../utils/incomingKp';
+import { usePurchaseWizard } from '../utils/purchaseWizard';
 
 const initialState: AppState = {
   requisites: {
@@ -61,6 +63,7 @@ function isIncompletePriceInput(value: string): boolean {
 
 export default function App() {
   const { id: purchaseId } = useParams<{ id: string }>();
+  const wizard = usePurchaseWizard('nmck');
   const [state, setState] = useState<AppState>(initialState);
   const [userSettings, setUserSettings] = useState<AutofillUserSettings>();
   const [purchaseContext, setPurchaseContext] = useState<PurchaseContext | null>(null);
@@ -84,12 +87,15 @@ export default function App() {
         if (res.ok) {
           const context: PurchaseContext = await res.json();
           const savedState = context.documents.nmck;
+          const autofilled = applyNmckAutofill(initialState, {
+            userSettings: context.settings,
+            currentPurchase: buildPurchaseAutofillContext(context),
+          }).state;
           const nextState = savedState
             ? normalizeNmckState(savedState as AppState)
-            : applyNmckAutofill(initialState, {
-              userSettings: context.settings,
-              currentPurchase: buildPurchaseAutofillContext(context),
-            }).state;
+            : wizard.isActive
+              ? applyOffersToNmckState(autofilled, context.offers ?? [])
+              : autofilled;
           setUserSettings(context.settings);
           setPurchaseContext(context);
           setState(nextState);
@@ -104,7 +110,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [purchaseId]);
+  }, [purchaseId, wizard.isActive]);
 
   useEffect(() => {
     saveCurrentPurchase(state);
@@ -174,12 +180,11 @@ export default function App() {
   };
 
   const resetState = () => {
-    // preserve settings when resetting
     const currentCustomer = state.requisites.customer;
     const currentPos = state.requisites.executorPosition;
     const currentName = state.requisites.executorName;
     setPriceDrafts({});
-    setState({
+    const nextState: AppState = {
       ...initialState,
       requisites: {
         ...initialState.requisites,
@@ -187,7 +192,10 @@ export default function App() {
         executorPosition: currentPos,
         executorName: currentName
       }
-    });
+    };
+    setState(wizard.isActive
+      ? applyOffersToNmckState(nextState, purchaseContext?.offers ?? [])
+      : nextState);
   };
 
   const addSupplier = () => {
@@ -361,13 +369,19 @@ export default function App() {
       console.error(e);
       setDownloadMessage('Не удалось сформировать DOCX. Проверьте данные и попробуйте ещё раз.');
       setDownloadMessageError(true);
-      return;
+      return false;
     }
 
     await saveDocumentState(
       'DOCX скачан, состояние закупки сохранено.',
       'DOCX скачан, но состояние закупки не сохранено'
     );
+    return true;
+  };
+
+  const handleWizardFinish = async () => {
+    const generated = await handleDocxDownload();
+    if (generated) wizard.finish();
   };
 
   const inputClass = "w-full h-full bg-transparent border border-transparent hover:bg-ink/5 focus:bg-surface focus:border-ink outline-none px-2 py-1.5 text-[11px] transition-all duration-200 cursor-text rounded-sm";
@@ -376,7 +390,13 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-page text-ink font-sans overflow-hidden p-6">
-      
+      {wizard.isActive && (
+        <PurchaseWizardBar
+          steps={wizard.steps}
+          currentIndex={wizard.currentIndex}
+          onCancel={wizard.cancel}
+        />
+      )}
       <header className="flex justify-between items-center mb-6 pb-4 border-b border-line shrink-0 gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold uppercase tracking-tighter">Система Обоснования НМЦК</h1>
@@ -398,9 +418,19 @@ export default function App() {
           >
             <Save className="w-3.5 h-3.5" /> {isSaving ? 'Сохранение...' : 'Сохранить'}
           </button>
-          <button onClick={handleDocxDownload} className="btn-brutal btn-brutal-primary flex items-center gap-2">
-            <Download className="w-4 h-4" /> Сгенерировать DOCX
-          </button>
+          {wizard.isActive ? (
+            <button
+              type="button"
+              onClick={() => void handleWizardFinish()}
+              className="btn-brutal btn-brutal-primary flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" /> Завершить
+            </button>
+          ) : (
+            <button onClick={() => void handleDocxDownload()} className="btn-brutal btn-brutal-primary flex items-center gap-2">
+              <Download className="w-4 h-4" /> Сгенерировать DOCX
+            </button>
+          )}
         </div>
       </header>
 

@@ -18,6 +18,7 @@ import { generateRegisteredDocument, getDocumentTitle } from '../documents/regis
 import type { AutofillSuggestion } from '../documents/autofill';
 import { apiFetch, readApiError } from '../utils/api';
 import { calculateMinSupplierTotal } from '../utils/currentPurchase';
+import { nmckWizardOffersPath } from '../utils/purchaseWizard';
 
 type PurchaseMutationResponse = {
   success: boolean;
@@ -559,6 +560,9 @@ export default function PurchaseDetail() {
               <div className="flex flex-wrap gap-2">
                 <Link to={`/purchases/${purchase.id}/offers`} className="btn-brutal bg-surface text-[11px] font-bold">
                   {offers.length > 0 ? 'Открыть' : 'Добавить'}
+                </Link>
+                <Link to={nmckWizardOffersPath(purchase.id)} className="btn-brutal btn-brutal-primary text-[11px] font-bold">
+                  Все КП получены
                 </Link>
               </div>
             </div>

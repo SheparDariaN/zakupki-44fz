@@ -4,6 +4,7 @@ import { Counterparty, KpDocxData, type PurchaseContext } from '../types';
 import KpDocumentPreview from './KpDocumentPreview';
 import AppNav from './AppNav';
 import ThemeToggle from './ThemeToggle';
+import PurchaseWizardBar from './PurchaseWizardBar';
 import { Trash2, Plus, RefreshCw, Download, User, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
@@ -11,8 +12,10 @@ import { applyKpAutofill, formatCounterpartyVendorInfo, resolveAutofill, suggest
 import type { AutofillSourceKind } from '../documents/templateTypes';
 import AutofillPanel from './AutofillPanel';
 import AutofillSuggestField from './AutofillSuggestField';
-import { buildPurchaseAutofillContext, describeCurrentPurchase } from '../utils/currentPurchase';
+import { buildPurchaseAutofillContext, describeCurrentPurchase, isMemoState, seedKpStateFromMemo } from '../utils/currentPurchase';
 import { normalizeKpState } from '../documents/templateNormalization';
+import { generateKpMemoArchive } from '../utils/kpMemoArchive';
+import { usePurchaseWizard } from '../utils/purchaseWizard';
 
 const defaultValues: KpDocxData = {
   vendorInfos: [
@@ -39,6 +42,7 @@ info@softmall.ru`
 
 export default function KpRequest() {
   const { id: purchaseId } = useParams<{ id: string }>();
+  const wizard = usePurchaseWizard('kp');
   const [data, setData] = useState<KpDocxData>(defaultValues);
   const [userSettings, setUserSettings] = useState<AutofillUserSettings>();
   const [purchaseContext, setPurchaseContext] = useState<PurchaseContext | null>(null);
@@ -108,11 +112,20 @@ export default function KpRequest() {
           const currentPurchase = buildPurchaseAutofillContext(context);
           const nextData = savedState
             ? normalizeKpState(savedState as KpDocxData)
-            : applyKpAutofill(defaultValues, { userSettings: context.settings, currentPurchase }, {
-              overwrite: true,
-              sourceKinds: ['userSettings'],
-              fieldKeys: ['submissionEmail', 'contactPerson', 'kpContacts'],
-            }).state;
+            : wizard.isActive
+              ? seedKpStateFromMemo(
+                applyKpAutofill(defaultValues, { userSettings: context.settings, currentPurchase }, {
+                  overwrite: true,
+                  sourceKinds: ['userSettings', 'currentPurchase'],
+                  fieldKeys: ['submissionEmail', 'contactPerson', 'kpContacts', 'subjectIntro'],
+                }).state,
+                context.documents.memo
+              )
+              : applyKpAutofill(defaultValues, { userSettings: context.settings, currentPurchase }, {
+                overwrite: true,
+                sourceKinds: ['userSettings'],
+                fieldKeys: ['submissionEmail', 'contactPerson', 'kpContacts'],
+              }).state;
           setPurchaseContext(context);
           setUserSettings(context.settings);
           setData(nextData);
@@ -127,7 +140,7 @@ export default function KpRequest() {
     return () => {
       active = false;
     };
-  }, [purchaseId]);
+  }, [purchaseId, wizard.isActive]);
 
   const availableCounterpartyTags = useMemo(() => {
     const tags = new Set<string>();
@@ -356,6 +369,35 @@ export default function KpRequest() {
     }
   };
 
+  const handleWizardFinish = async () => {
+    if (vendorCount === 0) return;
+    setIsGenerating(true);
+    setDownloadMessage('');
+    setDownloadMessageError(false);
+    const documentData = normalizeKpState(data);
+    try {
+      const saved = await saveDocumentState(
+        'Состояние запроса КП сохранено.',
+        'Не удалось сохранить состояние запроса КП'
+      );
+      if (!saved) return;
+      const memoState = purchaseContext?.documents.memo;
+      if (!isMemoState(memoState)) {
+        setDownloadMessage('Нет сохранённой служебной записки.');
+        setDownloadMessageError(true);
+        return;
+      }
+      await generateKpMemoArchive(documentData, memoState);
+      wizard.finish();
+    } catch (error) {
+      console.error("Failed to generate kp+memo archive", error);
+      setDownloadMessage('Не удалось сформировать архив. Проверьте данные и попробуйте ещё раз.');
+      setDownloadMessageError(true);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const labelClass = "text-[9px] uppercase opacity-60 mb-1 font-bold";
   const fieldClass = "bg-transparent border-b border-ink/30 hover:border-ink focus:border-ink text-xs py-1.5 focus:outline-none w-full transition-colors";
   const textareaClass = "w-full bg-transparent border border-line px-2 py-1.5 text-xs focus:outline-none focus:bg-surface resize-none";
@@ -365,7 +407,13 @@ export default function KpRequest() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-page text-ink font-sans overflow-hidden p-6">
-
+      {wizard.isActive && (
+        <PurchaseWizardBar
+          steps={wizard.steps}
+          currentIndex={wizard.currentIndex}
+          onCancel={wizard.cancel}
+        />
+      )}
       <header className="flex justify-between items-center mb-6 pb-4 border-b border-line shrink-0 gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold uppercase tracking-tighter">Запрос коммерческих предложений</h1>
@@ -387,18 +435,30 @@ export default function KpRequest() {
           >
             <Save className="w-3.5 h-3.5" /> {isSaving ? 'Сохранение...' : 'Сохранить'}
           </button>
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || vendorCount === 0}
-            className="btn-brutal btn-brutal-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="w-4 h-4" />
-            {isGenerating
-              ? 'Создание...'
-              : vendorCount > 1
-                ? `Скачать ZIP (${vendorCount})`
-                : 'Сгенерировать DOCX'}
-          </button>
+          {wizard.isActive ? (
+            <button
+              type="button"
+              onClick={() => void handleWizardFinish()}
+              disabled={isGenerating || isSaving || vendorCount === 0}
+              className="btn-brutal btn-brutal-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              {isGenerating ? 'Создание...' : 'Завершить'}
+            </button>
+          ) : (
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating || vendorCount === 0}
+              className="btn-brutal btn-brutal-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              {isGenerating
+                ? 'Создание...'
+                : vendorCount > 1
+                  ? `Скачать ZIP (${vendorCount})`
+                  : 'Сгенерировать DOCX'}
+            </button>
+          )}
         </div>
       </header>
 

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, RefreshCw, Save, User } from 'lucide-react';
+import { ArrowRight, Download, RefreshCw, Save, User } from 'lucide-react';
 import { ServiceMemoData, type PurchaseContext } from '../types';
 import AppNav from './AppNav';
 import ThemeToggle from './ThemeToggle';
 import ServiceMemoPreview from './ServiceMemoPreview';
+import PurchaseWizardBar from './PurchaseWizardBar';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
 import { applyMemoAutofill, resolveAutofill, suggestionsForField, syncMemoRequesterInflection, type AutofillSuggestion, type AutofillUserSettings } from '../documents/autofill';
@@ -14,6 +15,7 @@ import AutofillSuggestField from './AutofillSuggestField';
 import { buildPurchaseAutofillContext, describeCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeMemoState } from '../documents/templateNormalization';
 import { DEFAULT_MEMO_ADDRESSEE } from '../utils/serviceMemoDocxGenerator';
+import { usePurchaseWizard } from '../utils/purchaseWizard';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -29,6 +31,7 @@ const defaultValues: ServiceMemoData = {
 
 export default function ServiceMemo() {
   const { id: purchaseId } = useParams<{ id: string }>();
+  const wizard = usePurchaseWizard('memo');
   const [data, setData] = useState<ServiceMemoData>(defaultValues);
   const [userSettings, setUserSettings] = useState<AutofillUserSettings>();
   const [purchaseContext, setPurchaseContext] = useState<PurchaseContext | null>(null);
@@ -58,7 +61,7 @@ export default function ServiceMemo() {
             }).state;
           setPurchaseContext(context);
           setUserSettings(context.settings);
-          setData(nextData);
+          setData(wizard.isActive ? { ...nextData, date: '' } : nextData);
         }
       } catch (err) {
         console.error(err);
@@ -70,7 +73,7 @@ export default function ServiceMemo() {
     return () => {
       active = false;
     };
-  }, [purchaseId]);
+  }, [purchaseId, wizard.isActive]);
 
   const currentPurchase = useMemo(
     () => buildPurchaseAutofillContext(purchaseContext),
@@ -82,13 +85,23 @@ export default function ServiceMemo() {
   }), [currentPurchase, userSettings]);
 
   const autofillSourceKinds = autofillSource === 'all' ? undefined : [autofillSource];
-  const autofillSuggestions = useMemo(() => resolveAutofill('memo', data, autofillContext, {
-    includeFilled: true,
-    sourceKinds: autofillSourceKinds,
-  }), [autofillContext, autofillSourceKinds, data]);
-  const fieldAutofillSuggestions = useMemo(() => resolveAutofill('memo', data, autofillContext, {
-    includeFilled: true,
-  }), [autofillContext, data]);
+  const autofillSuggestions = useMemo(() => {
+    const suggestions = resolveAutofill('memo', data, autofillContext, {
+      includeFilled: true,
+      sourceKinds: autofillSourceKinds,
+    });
+    return wizard.isActive
+      ? suggestions.filter((suggestion) => suggestion.fieldKey !== 'date')
+      : suggestions;
+  }, [autofillContext, autofillSourceKinds, data, wizard.isActive]);
+  const fieldAutofillSuggestions = useMemo(() => {
+    const suggestions = resolveAutofill('memo', data, autofillContext, {
+      includeFilled: true,
+    });
+    return wizard.isActive
+      ? suggestions.filter((suggestion) => suggestion.fieldKey !== 'date')
+      : suggestions;
+  }, [autofillContext, data, wizard.isActive]);
 
   const applyAutofillSuggestions = (fieldKeys: string[]) => {
     const result = applyMemoAutofill(data, autofillContext, {
@@ -97,7 +110,7 @@ export default function ServiceMemo() {
       sourceKinds: autofillSourceKinds,
       fieldKeys,
     });
-    setData(result.state);
+    setData(wizard.isActive ? { ...result.state, date: '' } : result.state);
     setDownloadMessage(result.changed.length > 0
       ? `Автозаполнение применено: ${result.changed.length} пол.`
       : 'Нет полей для автозаполнения без перезаписи.');
@@ -111,7 +124,7 @@ export default function ServiceMemo() {
       sourceKinds: [suggestion.sourceKind],
       fieldKeys: [field],
     });
-    setData(result.state);
+    setData(wizard.isActive ? { ...result.state, date: '' } : result.state);
     setDownloadMessage(result.changed.length > 0
       ? `Поле заполнено: ${result.changed[0].label}.`
       : 'Нет данных для подстановки.');
@@ -126,7 +139,7 @@ export default function ServiceMemo() {
   };
 
   const resetState = () => {
-    setData({ ...defaultValues, date: todayIso() });
+    setData({ ...defaultValues, date: wizard.isActive ? '' : todayIso() });
     setDownloadMessage('');
     setDownloadMessageError(false);
   };
@@ -137,7 +150,10 @@ export default function ServiceMemo() {
   ) => {
     setDownloadMessage('');
     setDownloadMessageError(false);
-    const documentData = normalizeMemoState(syncMemoRequesterInflection(data, userSettings));
+    const documentData = normalizeMemoState(syncMemoRequesterInflection(
+      wizard.isActive ? { ...data, date: '' } : data,
+      userSettings
+    ));
     if (!purchaseId) return false;
 
     setIsSaving(true);
@@ -188,23 +204,41 @@ export default function ServiceMemo() {
     }
   };
 
+  const handleWizardNext = async () => {
+    const saved = await saveDocumentState(
+      'Служебная записка сохранена.',
+      'Не удалось сохранить служебную записку'
+    );
+    if (saved) wizard.goNext();
+  };
+
   const labelClass = "text-[9px] uppercase opacity-60 mb-1 font-bold";
   const fieldClass = "bg-transparent border-b border-ink/30 hover:border-ink focus:border-ink text-xs py-1.5 focus:outline-none w-full transition-colors";
   const textareaClass = "w-full bg-transparent border border-line px-2 py-1.5 text-xs focus:outline-none focus:bg-surface resize-none";
   const normalizedData = useMemo(
-    () => normalizeMemoState(syncMemoRequesterInflection(data, userSettings)),
-    [data, userSettings]
+    () => normalizeMemoState(syncMemoRequesterInflection(
+      wizard.isActive ? { ...data, date: '' } : data,
+      userSettings
+    )),
+    [data, userSettings, wizard.isActive]
   );
   const canGenerate = Boolean(
     normalizedData.purpose &&
     normalizedData.subjectIntro &&
     normalizedData.requester &&
     normalizedData.contractServiceHead &&
-    normalizedData.date
+    (wizard.isActive || normalizedData.date)
   );
 
   return (
     <div className="flex flex-col h-screen w-full bg-page text-ink font-sans overflow-hidden p-6">
+      {wizard.isActive && (
+        <PurchaseWizardBar
+          steps={wizard.steps}
+          currentIndex={wizard.currentIndex}
+          onCancel={wizard.cancel}
+        />
+      )}
       <header className="flex justify-between items-center mb-6 pb-4 border-b border-line shrink-0 gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold uppercase tracking-tighter">Служебная записка на закупку</h1>
@@ -226,14 +260,26 @@ export default function ServiceMemo() {
           >
             <Save className="w-3.5 h-3.5" /> {isSaving ? 'Сохранение...' : 'Сохранить'}
           </button>
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || !canGenerate}
-            className="btn-brutal btn-brutal-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="w-4 h-4" />
-            {isGenerating ? 'Создание...' : 'Сгенерировать DOCX'}
-          </button>
+          {wizard.isActive ? (
+            <button
+              type="button"
+              onClick={() => void handleWizardNext()}
+              disabled={isSaving || !canGenerate}
+              className="btn-brutal btn-brutal-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ArrowRight className="w-4 h-4" />
+              {isSaving ? 'Сохранение...' : 'Далее'}
+            </button>
+          ) : (
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating || !canGenerate}
+              className="btn-brutal btn-brutal-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              {isGenerating ? 'Создание...' : 'Сгенерировать DOCX'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -248,12 +294,18 @@ export default function ServiceMemo() {
           <AutofillPanel
             title="Автозаполнение"
             description="Проверьте предложения и перенесите данные НМЦК или профиля в служебку."
-            sourceOptions={[
-              { value: 'all', label: 'Все доступные источники' },
-              { value: 'currentPurchase', label: 'Текущая НМЦК' },
-              { value: 'userSettings', label: 'Профиль пользователя' },
-              { value: 'currentDate', label: 'Текущая дата' },
-            ]}
+            sourceOptions={wizard.isActive
+              ? [
+                { value: 'all', label: 'Все доступные источники' },
+                { value: 'currentPurchase', label: 'Текущая НМЦК' },
+                { value: 'userSettings', label: 'Профиль пользователя' },
+              ]
+              : [
+                { value: 'all', label: 'Все доступные источники' },
+                { value: 'currentPurchase', label: 'Текущая НМЦК' },
+                { value: 'userSettings', label: 'Профиль пользователя' },
+                { value: 'currentDate', label: 'Текущая дата' },
+              ]}
             selectedSource={autofillSource}
             onSourceChange={setAutofillSource}
             suggestions={autofillSuggestions}
@@ -309,15 +361,17 @@ export default function ServiceMemo() {
                 />
                 <p className="text-[10px] opacity-40 mt-1">В шапке — родительный падеж, в подписи — именительный.</p>
               </div>
-              <div className="flex flex-col">
-                <label className={labelClass}>Дата</label>
-                <input
-                  type="date"
-                  className={fieldClass}
-                  value={data.date}
-                  onChange={e => handleChange('date', e.target.value)}
-                />
-              </div>
+              {!wizard.isActive && (
+                <div className="flex flex-col">
+                  <label className={labelClass}>Дата</label>
+                  <input
+                    type="date"
+                    className={fieldClass}
+                    value={data.date}
+                    onChange={e => handleChange('date', e.target.value)}
+                  />
+                </div>
+              )}
             </div>
           </section>
 

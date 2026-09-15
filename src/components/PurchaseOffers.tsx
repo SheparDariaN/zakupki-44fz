@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, Eye, Plus, RefreshCw, Save, Trash2, User } from 'lucide-react';
+import { ArrowRight, Download, Eye, Plus, RefreshCw, Save, Trash2, User } from 'lucide-react';
 import AppNav from './AppNav';
 import ThemeToggle from './ThemeToggle';
+import PurchaseWizardBar from './PurchaseWizardBar';
 import { apiFetch, readApiError } from '../utils/api';
+import { usePurchaseWizard } from '../utils/purchaseWizard';
 import type { Counterparty, PurchaseOffer } from '../types';
 
 type OfferMutationResponse = {
@@ -69,6 +71,7 @@ function appendOfferFields(formData: FormData, form: OfferFormState) {
 export default function PurchaseOffers() {
   const { id } = useParams<{ id: string }>();
   const purchaseId = Number(id);
+  const wizard = usePurchaseWizard('offers');
 
   const [offers, setOffers] = useState<PurchaseOffer[]>([]);
   const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
@@ -345,6 +348,13 @@ export default function PurchaseOffers() {
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-page p-6 font-sans text-ink">
+      {wizard.isActive && (
+        <PurchaseWizardBar
+          steps={wizard.steps}
+          currentIndex={wizard.currentIndex}
+          onCancel={wizard.cancel}
+        />
+      )}
       <header className="mb-6 flex shrink-0 items-center justify-between gap-4 border-b border-line pb-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold uppercase tracking-tighter">Входящие КП</h1>
@@ -363,6 +373,16 @@ export default function PurchaseOffers() {
           >
             <RefreshCw className="h-3.5 w-3.5" /> Обновить
           </button>
+          {wizard.isActive && (
+            <button
+              type="button"
+              onClick={wizard.goNext}
+              disabled={offers.length === 0}
+              className="btn-brutal btn-brutal-primary flex items-center gap-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ArrowRight className="h-4 w-4" /> Далее
+            </button>
+          )}
         </div>
       </header>
 

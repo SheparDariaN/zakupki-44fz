@@ -1,5 +1,5 @@
 import type { AutofillSuggestion } from '../documents/autofill';
-import type { PurchaseOffer, Supplier } from '../types';
+import type { AppState, PurchaseOffer, Supplier } from '../types';
 import { formatDateRu } from './morphology';
 
 export function formatIncomingKpDetails(registeredNumber: string, registeredDate: string): string {
@@ -55,4 +55,28 @@ export function buildOfferSupplierSuggestions(
   }
 
   return suggestions;
+}
+
+export function suppliersFromOffers(offers: readonly PurchaseOffer[]): Supplier[] {
+  return offers.map((offer) => ({
+    id: `offer-${offer.id}`,
+    name: offer.companyName.trim(),
+    kpDetails: formatIncomingKpDetails(offer.registeredNumber, offer.registeredDate),
+  }));
+}
+
+export function applyOffersToNmckState(state: AppState, offers: readonly PurchaseOffer[]): AppState {
+  const suppliers = suppliersFromOffers(offers);
+  if (suppliers.length === 0) return state;
+
+  const positions = [{ id: '1', name: '', quantity: 1, unit: 'шт' }];
+  const prices = positions.flatMap((position) =>
+    suppliers.map((supplier) => ({
+      positionId: position.id,
+      supplierId: supplier.id,
+      price: 0,
+    }))
+  );
+
+  return { ...state, suppliers, positions, prices };
 }

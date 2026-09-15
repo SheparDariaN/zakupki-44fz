@@ -93,16 +93,18 @@ export function getServiceMemoSignatureParts(requester: string) {
   };
 }
 
+export const EMPTY_SERVICE_MEMO_DATE_PLACEHOLDER = "«____» ______________ 20____ г.";
+
 export function getServiceMemoSignatureBlock(data: ServiceMemoData) {
   const parts = getServiceMemoSignatureParts(data.requester);
   const date = formatServiceMemoDate(data.date);
   return {
-    leftLines: [...splitMemoLines(parts.left), ...(date ? [date] : [])],
+    leftLines: [...splitMemoLines(parts.left), date || EMPTY_SERVICE_MEMO_DATE_PLACEHOLDER],
     right: parts.right,
   };
 }
 
-const buildServiceMemoDocument = (data: ServiceMemoData) => {
+export const buildServiceMemoDocument = (data: ServiceMemoData) => {
   const TIMES = "Times New Roman";
   const bodyText = getServiceMemoBodyText(data);
   const subjectItems = getServiceMemoSubjectItems(data.subjectTable);
@@ -217,11 +219,17 @@ const buildServiceMemoDocument = (data: ServiceMemoData) => {
   });
 };
 
-export const generateServiceMemoDocx = async (data: ServiceMemoData) => {
+export function buildServiceMemoDocumentItem(data: ServiceMemoData) {
   const normalizedData = normalizeMemoState(data);
-  const doc = buildServiceMemoDocument(normalizedData);
+  return {
+    document: buildServiceMemoDocument(normalizedData),
+    filename: "Служебная_записка_на_закупку.docx",
+  };
+}
+
+export const generateServiceMemoDocx = async (data: ServiceMemoData) => {
   await generateDocumentBatch(
-    [{ document: doc, filename: "Служебная_записка_на_закупку.docx" }],
+    [buildServiceMemoDocumentItem(data)],
     { singleFileName: "Служебная_записка_на_закупку.docx", zipFileName: "Служебные_записки.zip" }
   );
 };

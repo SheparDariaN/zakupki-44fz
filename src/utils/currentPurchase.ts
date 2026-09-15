@@ -61,7 +61,7 @@ function isKpState(value: unknown): value is KpDocxData {
   return isRecord(value) && Array.isArray(value.vendorInfos);
 }
 
-function isMemoState(value: unknown): value is ServiceMemoData {
+export function isMemoState(value: unknown): value is ServiceMemoData {
   return isRecord(value) && typeof value.subjectIntro === 'string';
 }
 
@@ -74,7 +74,10 @@ export function buildPurchaseAutofillContext(
   const nmck = isNmckState(context?.documents.nmck) ? context.documents.nmck : fallback;
   const kp = isKpState(context?.documents.kp) ? context.documents.kp : undefined;
   const memo = isMemoState(context?.documents.memo) ? context.documents.memo : undefined;
-  const subject = nmck?.requisites.subject.trim() || context?.purchase.name.trim() || '';
+  const subject = nmck?.requisites.subject.trim()
+    || memo?.subjectIntro.trim()
+    || context?.purchase.name.trim()
+    || '';
   const requisites = nmck?.requisites ?? {
     customer: '',
     subject: '',
@@ -97,6 +100,20 @@ export function buildPurchaseAutofillContext(
     serviceConditions: kp?.serviceConditions,
     purchasePeriod: kp?.purchasePeriod,
     purpose: memo?.purpose,
+    subjectIntro: memo?.subjectIntro,
+    subjectTable: memo?.subjectTable,
+  };
+}
+
+export function seedKpStateFromMemo(kp: KpDocxData, memo: unknown): KpDocxData {
+  if (!isMemoState(memo)) return kp;
+  const subjectIntro = memo.subjectIntro.trim();
+  const subjectTable = memo.subjectTable.trim();
+  if (!subjectIntro && !subjectTable) return kp;
+  return {
+    ...kp,
+    ...(subjectIntro ? { subjectIntro } : {}),
+    ...(subjectTable ? { subjectTable } : {}),
   };
 }
 

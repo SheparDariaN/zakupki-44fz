@@ -13,7 +13,7 @@ import {
 import { KpDocxData } from "../types";
 import { KP_VENDOR_BATCH_SCENARIO } from "../documents/batchScenarios";
 import { normalizeKpState } from "../documents/templateNormalization";
-import { generateDocumentBatchFromScenario, sanitizeFileName } from "./documentBatch";
+import { generateDocumentBatch, sanitizeFileName, type DocumentBatchItem } from "./documentBatch";
 
 const buildDocument = (data: KpDocxData, vendorInfo: string) => {
   const TIMES = "Times New Roman";
@@ -358,20 +358,25 @@ const buildDocument = (data: KpDocxData, vendorInfo: string) => {
   });
 };
 
-export const generateKpDocx = async (data: KpDocxData) => {
-  const normalizedData = normalizeKpState(data);
+function kpVendorFileName(vendor: string, index: number) {
+  const vendorName = sanitizeFileName(vendor.split('\n')[0].substring(0, 30), "vendor");
+  return `${index + 1}_Запрос_КП_${vendorName}.docx`;
+}
 
-  await generateDocumentBatchFromScenario(
-    normalizedData,
-    {
-      ...KP_VENDOR_BATCH_SCENARIO,
-      getVariants: (state) => state.vendorInfos.filter((vendor) => vendor.trim()),
-      getFallbackVariant: () => "",
-      getVariantFileName: (vendor, index) => {
-        const vendorName = sanitizeFileName(vendor.split('\n')[0].substring(0, 30), "vendor");
-        return `${index + 1}_Запрос_КП_${vendorName}.docx`;
-      },
-    },
-    (state, vendor) => buildDocument(state, vendor)
-  );
+export function buildKpDocumentItems(data: KpDocxData): DocumentBatchItem[] {
+  const normalizedData = normalizeKpState(data);
+  const vendors = normalizedData.vendorInfos.filter((vendor) => vendor.trim());
+  const variants = vendors.length > 0 ? vendors : [""];
+
+  return variants.map((vendor, index) => ({
+    document: buildDocument(normalizedData, vendor),
+    filename: kpVendorFileName(vendor, index),
+  }));
+}
+
+export const generateKpDocx = async (data: KpDocxData) => {
+  await generateDocumentBatch(buildKpDocumentItems(data), {
+    singleFileName: KP_VENDOR_BATCH_SCENARIO.singleFileName,
+    zipFileName: KP_VENDOR_BATCH_SCENARIO.zipFileName,
+  });
 };

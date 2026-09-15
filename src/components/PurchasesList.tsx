@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FileText, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { apiFetch, readApiError } from '../utils/api';
+import { requestsWizardMemoPath } from '../utils/purchaseWizard';
 import type { PurchaseListItem } from '../types';
 
 type CreatePurchaseResponse = {
@@ -98,7 +99,7 @@ export default function PurchasesList() {
       }
 
       const data: CreatePurchaseResponse = await res.json();
-      navigate(`/purchases/${data.purchase.id}`);
+      navigate(requestsWizardMemoPath(data.purchase.id));
     } catch (err) {
       console.error(err);
       showMessage('Не удалось создать закупку: ошибка сети.', true);

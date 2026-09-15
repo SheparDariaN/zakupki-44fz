@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatListItems } from '../documents/templateTransforms';
 import {
+  EMPTY_SERVICE_MEMO_DATE_PLACEHOLDER,
   formatServiceMemoHeaderRequester,
   getServiceMemoHeaderLines,
   getServiceMemoSignatureBlock,
@@ -87,6 +88,21 @@ describe('service memo requester cases', () => {
       date: '2026-08-26',
     })).toEqual({
       leftLines: ['Главный специалист', '26.08.2026'],
+      right: 'Иванова Анна Сергеевна',
+    });
+  });
+
+  it('оставляет место для даты подписи, если дата пустая', () => {
+    expect(getServiceMemoSignatureBlock({
+      purpose: '',
+      subjectIntro: '',
+      subjectTable: '',
+      requester: 'Главный специалист\nИванова Анна Сергеевна',
+      addressee: 'Директору',
+      contractServiceHead: 'Петров Петр Петрович',
+      date: '',
+    })).toEqual({
+      leftLines: ['Главный специалист', EMPTY_SERVICE_MEMO_DATE_PLACEHOLDER],
       right: 'Иванова Анна Сергеевна',
     });
   });
