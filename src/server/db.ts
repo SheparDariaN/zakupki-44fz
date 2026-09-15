@@ -19,6 +19,7 @@ import {
   type StoredPurchaseDocumentMetadata,
   type StoredPurchaseLink,
   type StoredPurchaseListItem,
+  type StoredPurchaseOffer,
   type StoredUser,
   type UserRole,
   type UserSettings,
@@ -30,6 +31,9 @@ export const MAX_DOCUMENT_NAME_LENGTH = 500;
 export const MAX_PURCHASE_NAME_LENGTH = 500;
 export const MAX_PURCHASE_LINK_URL_LENGTH = 2048;
 export const MAX_PURCHASE_LINK_TITLE_LENGTH = 500;
+export const MAX_OFFER_NUMBER_LENGTH = 100;
+export const MAX_OFFER_COMPANY_NAME_LENGTH = 500;
+export const MAX_OFFERS_PER_PURCHASE = 50;
 
 const EMPTY_SETTINGS: UserSettings = {
   customer: '',
@@ -111,6 +115,7 @@ type PurchaseListRow = PurchaseRow & {
   kp_count: string | number;
   memo_count: string | number;
   contract_count: string | number;
+  offers_count: string | number;
   links_count: string | number;
 };
 
@@ -135,6 +140,29 @@ type PurchaseDocumentRow = {
   created_at_ms: string | number;
   updated_at_ms: string | number;
 };
+
+type PurchaseOfferRow = {
+  id: number;
+  purchase_id: number;
+  registered_number: string;
+  registered_date: string;
+  company_name: string;
+  counterparty_id: number | null;
+  file_rel_path: string;
+  mime: string;
+  file_name: string;
+  created_at_ms: string | number;
+  updated_at_ms: string | number;
+};
+
+export type OfferMetadata = {
+  registeredNumber: string;
+  registeredDate: string;
+  companyName: string;
+  counterpartyId: number | null;
+};
+
+type StoredPurchaseOfferRecord = StoredPurchaseOffer & { fileRelPath: string };
 
 let dbInstance: AppDatabase | null = null;
 
@@ -374,6 +402,104 @@ export function normalizePurchaseLinkInput(
   return { url, title };
 }
 
+function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12 || day < 1) return false;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function parseRegisteredDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    if (!isValidCalendarDate(year, month, day)) return null;
+    return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  }
+  const ru = trimmed.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!ru) return null;
+  const day = Number(ru[1]);
+  const month = Number(ru[2]);
+  const year = Number(ru[3]);
+  if (!isValidCalendarDate(year, month, day)) return null;
+  return `${ru[3]}-${ru[2]}-${ru[1]}`;
+}
+
+function parseOptionalCounterpartyId(value: unknown, fallback: number | null): number | null {
+  if (value === undefined) return fallback;
+  if (value === null || value === '') return null;
+  const raw = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : Number.NaN;
+  if (!Number.isInteger(raw) || raw <= 0) {
+    throw new HttpError(400, 'Некорректный идентификатор контрагента');
+  }
+  return raw;
+}
+
+export function normalizeOfferMetadataInput(input: unknown, base?: OfferMetadata): OfferMetadata {
+  const src = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+  const registeredNumber = trimString(
+    src.registeredNumber === undefined ? base?.registeredNumber : src.registeredNumber
+  ).slice(0, MAX_OFFER_NUMBER_LENGTH);
+  if (!registeredNumber) {
+    throw new HttpError(400, 'Укажите номер КП');
+  }
+
+  const registeredDate = parseRegisteredDate(
+    src.registeredDate === undefined ? base?.registeredDate : src.registeredDate
+  );
+  if (!registeredDate) {
+    throw new HttpError(400, 'Укажите дату регистрации КП');
+  }
+
+  return {
+    registeredNumber,
+    registeredDate,
+    companyName: trimString(src.companyName === undefined ? base?.companyName : src.companyName)
+      .slice(0, MAX_OFFER_COMPANY_NAME_LENGTH),
+    counterpartyId: parseOptionalCounterpartyId(src.counterpartyId, base?.counterpartyId ?? null),
+  };
+}
+
+const PURCHASE_OFFER_SELECT = `id, purchase_id, registered_number,
+       to_char(registered_date, 'YYYY-MM-DD') as registered_date,
+       company_name, counterparty_id, file_rel_path, mime, file_name,
+       floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+       floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms`;
+
+function mapPurchaseOfferRecord(row: PurchaseOfferRow): StoredPurchaseOfferRecord {
+  return {
+    id: Number(row.id),
+    purchaseId: Number(row.purchase_id),
+    registeredNumber: row.registered_number,
+    registeredDate: row.registered_date,
+    companyName: row.company_name,
+    counterpartyId: row.counterparty_id === null ? null : Number(row.counterparty_id),
+    fileRelPath: row.file_rel_path,
+    mime: row.mime,
+    fileName: row.file_name,
+    createdAt: Number(row.created_at_ms),
+    updatedAt: Number(row.updated_at_ms),
+  };
+}
+
+function toPublicOffer(record: StoredPurchaseOfferRecord): StoredPurchaseOffer {
+  return {
+    id: record.id,
+    purchaseId: record.purchaseId,
+    registeredNumber: record.registeredNumber,
+    registeredDate: record.registeredDate,
+    companyName: record.companyName,
+    counterpartyId: record.counterpartyId,
+    mime: record.mime,
+    fileName: record.fileName,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
+}
+
 export function validatePurchaseDocumentState(kind: unknown, state: unknown): DocumentKind {
   if (!isDocumentKind(kind)) {
     throw new HttpError(400, 'Тип документа должен быть nmck, kp или memo');
@@ -430,17 +556,19 @@ function mapPurchaseRow(row: PurchaseRow): StoredPurchase {
 }
 
 function emptyDocumentCounts(): StoredPurchaseDocumentCounts {
-  return { nmck: 0, kp: 0, memo: 0, contract: 0 };
+  return { nmck: 0, kp: 0, memo: 0, contract: 0, offers: 0 };
 }
 
 function mapPurchaseListRow(row: PurchaseListRow): StoredPurchaseListItem {
   return {
     ...mapPurchaseRow(row),
     documentCounts: {
+      ...emptyDocumentCounts(),
       nmck: Number(row.nmck_count),
       kp: Number(row.kp_count),
       memo: Number(row.memo_count),
       contract: Number(row.contract_count),
+      offers: Number(row.offers_count),
     },
     linksCount: Number(row.links_count),
   };
@@ -567,6 +695,7 @@ export class AppDatabase {
               coalesce(d.kp_count, 0)::int as kp_count,
               coalesce(d.memo_count, 0)::int as memo_count,
               coalesce(d.contract_count, 0)::int as contract_count,
+              coalesce(o.offers_count, 0)::int as offers_count,
               coalesce(l.links_count, 0)::int as links_count
          from purchases p
          left join (
@@ -578,6 +707,11 @@ export class AppDatabase {
              from purchase_documents
             group by purchase_id
          ) d on d.purchase_id = p.id
+         left join (
+           select purchase_id, count(*) as offers_count
+             from purchase_offers
+            group by purchase_id
+         ) o on o.purchase_id = p.id
          left join (
            select purchase_id, count(*) as links_count
              from purchase_links
@@ -773,7 +907,8 @@ export class AppDatabase {
       documents[record.kind] = record.state;
     }
     const contract = await this.getPurchaseDocumentMetadata(userId, purchaseId, 'contract');
-    return { purchase, links, documents, contract, settings };
+    const offers = await this.listPurchaseOffers(userId, purchaseId);
+    return { purchase, links, documents, contract, offers, settings };
   }
 
   async listPurchaseDocumentMetadata(userId: number, purchaseId: number): Promise<StoredPurchaseDocumentMetadata[]> {
@@ -837,6 +972,130 @@ export class AppDatabase {
     const current = await this.getPurchaseDocumentMetadata(userId, purchaseId, 'contract');
     if (!current) return null;
     await this.pgPool.query("delete from purchase_documents where purchase_id = $1 and kind = 'contract'", [purchaseId]);
+    await this.touchPurchase(purchaseId);
+    return current;
+  }
+
+  async listPurchaseOffers(userId: number, purchaseId: number): Promise<StoredPurchaseOffer[]> {
+    const records = await this.listPurchaseOfferRecords(userId, purchaseId);
+    return records.map(toPublicOffer);
+  }
+
+  async getPurchaseOfferFile(
+    userId: number,
+    purchaseId: number,
+    offerId: number
+  ): Promise<StoredPurchaseOfferRecord> {
+    const record = await this.getPurchaseOfferRecord(userId, purchaseId, offerId);
+    if (!record) {
+      throw new HttpError(404, 'КП не найдено');
+    }
+    return record;
+  }
+
+  async createPurchaseOffer(
+    userId: number,
+    purchaseId: number,
+    input: unknown,
+    file: { fileRelPath: string; mime: string; fileName: string }
+  ): Promise<StoredPurchaseOffer> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const countResult = await this.pgPool.query<{ count: string | number }>(
+      'select count(*)::int as count from purchase_offers where purchase_id = $1',
+      [purchaseId]
+    );
+    if (Number(countResult.rows[0]?.count) >= MAX_OFFERS_PER_PURCHASE) {
+      throw new HttpError(400, `Нельзя загрузить больше ${MAX_OFFERS_PER_PURCHASE} КП в одну закупку`);
+    }
+
+    const metadata = await this.resolveOfferMetadata(normalizeOfferMetadataInput(input));
+    const result = await this.pgPool.query<PurchaseOfferRow>(
+      `insert into purchase_offers (
+         purchase_id, registered_number, registered_date, company_name, counterparty_id,
+         file_rel_path, mime, file_name
+       )
+       values ($1, $2, $3::date, $4, $5, $6, $7, $8)
+       returning ${PURCHASE_OFFER_SELECT}`,
+      [
+        purchaseId,
+        metadata.registeredNumber,
+        metadata.registeredDate,
+        metadata.companyName,
+        metadata.counterpartyId,
+        file.fileRelPath,
+        file.mime,
+        file.fileName,
+      ]
+    );
+    await this.touchPurchase(purchaseId);
+    return toPublicOffer(mapPurchaseOfferRecord(result.rows[0]));
+  }
+
+  async updatePurchaseOffer(
+    userId: number,
+    purchaseId: number,
+    offerId: number,
+    input: unknown,
+    file?: { fileRelPath: string; mime: string; fileName: string }
+  ): Promise<{ offer: StoredPurchaseOffer; previousFileRelPath: string | null }> {
+    const current = await this.getPurchaseOfferRecord(userId, purchaseId, offerId);
+    if (!current) {
+      throw new HttpError(404, 'КП не найдено');
+    }
+
+    const metadata = await this.resolveOfferMetadata(normalizeOfferMetadataInput(input, {
+      registeredNumber: current.registeredNumber,
+      registeredDate: current.registeredDate,
+      companyName: current.companyName,
+      counterpartyId: current.counterpartyId,
+    }));
+    const nextFile = file ?? {
+      fileRelPath: current.fileRelPath,
+      mime: current.mime,
+      fileName: current.fileName,
+    };
+
+    const result = await this.pgPool.query<PurchaseOfferRow>(
+      `update purchase_offers
+          set registered_number = $1,
+              registered_date = $2::date,
+              company_name = $3,
+              counterparty_id = $4,
+              file_rel_path = $5,
+              mime = $6,
+              file_name = $7,
+              updated_at = now()
+        where id = $8 and purchase_id = $9
+        returning ${PURCHASE_OFFER_SELECT}`,
+      [
+        metadata.registeredNumber,
+        metadata.registeredDate,
+        metadata.companyName,
+        metadata.counterpartyId,
+        nextFile.fileRelPath,
+        nextFile.mime,
+        nextFile.fileName,
+        offerId,
+        purchaseId,
+      ]
+    );
+    await this.touchPurchase(purchaseId);
+    return {
+      offer: toPublicOffer(mapPurchaseOfferRecord(result.rows[0])),
+      previousFileRelPath: file && file.fileRelPath !== current.fileRelPath ? current.fileRelPath : null,
+    };
+  }
+
+  async deletePurchaseOffer(
+    userId: number,
+    purchaseId: number,
+    offerId: number
+  ): Promise<StoredPurchaseOfferRecord> {
+    const current = await this.getPurchaseOfferRecord(userId, purchaseId, offerId);
+    if (!current) {
+      throw new HttpError(404, 'КП не найдено');
+    }
+    await this.pgPool.query('delete from purchase_offers where id = $1 and purchase_id = $2', [offerId, purchaseId]);
     await this.touchPurchase(purchaseId);
     return current;
   }
@@ -1029,6 +1288,45 @@ export class AppDatabase {
 
   private async ensureMongoIndexes() {
     await this.documentStates().createIndex({ purchaseId: 1, kind: 1 }, { unique: true });
+  }
+
+  private async resolveOfferMetadata(metadata: OfferMetadata): Promise<OfferMetadata> {
+    if (metadata.counterpartyId === null) return metadata;
+    const counterparty = await this.getCounterpartyById(metadata.counterpartyId);
+    if (!counterparty) {
+      throw new HttpError(400, 'Контрагент не найден');
+    }
+    return {
+      ...metadata,
+      companyName: metadata.companyName || counterparty.companyName,
+    };
+  }
+
+  private async listPurchaseOfferRecords(userId: number, purchaseId: number): Promise<StoredPurchaseOfferRecord[]> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const result = await this.pgPool.query<PurchaseOfferRow>(
+      `select ${PURCHASE_OFFER_SELECT}
+         from purchase_offers
+        where purchase_id = $1
+        order by registered_date desc, id desc`,
+      [purchaseId]
+    );
+    return result.rows.map(mapPurchaseOfferRecord);
+  }
+
+  private async getPurchaseOfferRecord(
+    userId: number,
+    purchaseId: number,
+    offerId: number
+  ): Promise<StoredPurchaseOfferRecord | null> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const result = await this.pgPool.query<PurchaseOfferRow>(
+      `select ${PURCHASE_OFFER_SELECT}
+         from purchase_offers
+        where id = $1 and purchase_id = $2`,
+      [offerId, purchaseId]
+    );
+    return result.rows[0] ? mapPurchaseOfferRecord(result.rows[0]) : null;
   }
 
   private async getCounterpartyById(id: number): Promise<StoredCounterparty | null> {

@@ -11,8 +11,10 @@ import {
   deletePurchaseFiles,
   deleteStoredFile,
   MAX_CONTRACT_FILE_BYTES,
+  MAX_OFFER_FILE_BYTES,
   readStoredFile,
   saveContractFile,
+  saveOfferFile,
 } from "./src/server/storage/files";
 
 const DEV_JWT_FALLBACK = "your_super_secret_jwt_key_here_change_it_in_prod";
@@ -21,10 +23,14 @@ const JSON_BODY_LIMIT = `${Math.ceil((MAX_STATE_BYTES + 32 * 1024) / 1024)}kb`;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
 const PROD_CSP =
-  "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'";
+  "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob:; frame-src 'self' blob:; style-src 'self' 'unsafe-inline'";
 const contractUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_CONTRACT_FILE_BYTES, files: 1 },
+});
+const offerUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_OFFER_FILE_BYTES, files: 1 },
 });
 
 type RateBucket = { count: number; resetAt: number };
@@ -146,9 +152,26 @@ function uploadContractFile(req: Request, res: Response, next: NextFunction) {
   });
 }
 
+function uploadOfferFile(req: Request, res: Response, next: NextFunction) {
+  offerUpload.single("file")(req, res, (err: unknown) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ error: "Файл КП слишком большой" });
+      }
+      return res.status(400).json({ error: "Некорректная загрузка файла" });
+    }
+    if (err) return next(err);
+    next();
+  });
+}
+
+function contentDispositionForFile(fileName: string, disposition: "attachment" | "inline"): string {
+  const asciiName = fileName.replace(/[^\x20-\x7E]+/g, "_").replace(/["\\]/g, "_") || "file";
+  return `${disposition}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
 function contentDispositionForAttachment(fileName: string): string {
-  const asciiName = fileName.replace(/[^\x20-\x7E]+/g, "_").replace(/["\\]/g, "_") || "contract";
-  return `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+  return contentDispositionForFile(fileName, "attachment");
 }
 
 async function startServer() {
@@ -542,6 +565,114 @@ async function startServer() {
     try {
       const previous = await db.deleteContractMetadata(req.user.id, id);
       await deleteStoredFile(previous?.fileRelPath);
+      res.json({ success: true });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.get("/api/purchases/:id/offers", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      const offers = await db.listPurchaseOffers(req.user.id, id);
+      res.json(offers);
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.post(
+    "/api/purchases/:id/offers",
+    authenticateToken,
+    uploadOfferFile,
+    async (req: AuthedRequest, res: Response) => {
+      const id = parseId(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: "Приложите файл КП" });
+      }
+
+      try {
+        const storedFile = await saveOfferFile(id, req.file);
+        try {
+          const offer = await db.createPurchaseOffer(req.user.id, id, req.body, storedFile);
+          res.json({ success: true, offer });
+        } catch (err) {
+          await deleteStoredFile(storedFile.fileRelPath);
+          throw err;
+        }
+      } catch (err) {
+        handleApiError(res, err);
+      }
+    }
+  );
+
+  app.put(
+    "/api/purchases/:id/offers/:offerId",
+    authenticateToken,
+    uploadOfferFile,
+    async (req: AuthedRequest, res: Response) => {
+      const id = parseId(req.params.id);
+      const offerId = parseId(req.params.offerId);
+      if (id === null || offerId === null) {
+        return res.status(400).json({ error: "Некорректный идентификатор" });
+      }
+
+      try {
+        const storedFile = req.file ? await saveOfferFile(id, req.file) : undefined;
+        try {
+          const result = await db.updatePurchaseOffer(req.user.id, id, offerId, req.body, storedFile);
+          if (result.previousFileRelPath) {
+            await deleteStoredFile(result.previousFileRelPath);
+          }
+          res.json({ success: true, offer: result.offer });
+        } catch (err) {
+          if (storedFile) {
+            await deleteStoredFile(storedFile.fileRelPath);
+          }
+          throw err;
+        }
+      } catch (err) {
+        handleApiError(res, err);
+      }
+    }
+  );
+
+  app.get("/api/purchases/:id/offers/:offerId", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    const offerId = parseId(req.params.offerId);
+    if (id === null || offerId === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор" });
+    }
+
+    try {
+      const offer = await db.getPurchaseOfferFile(req.user.id, id, offerId);
+      const file = await readStoredFile(offer.fileRelPath);
+      const download = req.query.download === "1" || req.query.download === "true";
+      res.setHeader("Content-Type", offer.mime);
+      res.setHeader("Content-Disposition", contentDispositionForFile(offer.fileName, download ? "attachment" : "inline"));
+      res.send(file);
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.delete("/api/purchases/:id/offers/:offerId", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    const offerId = parseId(req.params.offerId);
+    if (id === null || offerId === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор" });
+    }
+
+    try {
+      const previous = await db.deletePurchaseOffer(req.user.id, id, offerId);
+      await deleteStoredFile(previous.fileRelPath);
       res.json({ success: true });
     } catch (err) {
       handleApiError(res, err);

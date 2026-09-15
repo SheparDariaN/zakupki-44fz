@@ -93,6 +93,7 @@ export function buildPurchaseAutofillContext(
     purchaseCard: context?.purchase,
     links: context?.links ?? [],
     documents: context?.documents ?? {},
+    offers: context?.offers ?? [],
     serviceConditions: kp?.serviceConditions,
     purchasePeriod: kp?.purchasePeriod,
     purpose: memo?.purpose,

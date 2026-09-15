@@ -16,8 +16,9 @@ const moneyFormatter = new Intl.NumberFormat('ru-RU', {
 
 const documentLabels = {
   nmck: 'НМЦК',
-  kp: 'КП',
+  kp: 'Запрос КП',
   memo: 'СЗ',
+  offers: 'КП',
   contract: 'Контракт',
 } as const;
 

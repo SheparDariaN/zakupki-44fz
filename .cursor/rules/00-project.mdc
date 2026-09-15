@@ -15,6 +15,7 @@ Fullstack SPA: React 19 + Vite 6 + Express 4 + PostgreSQL + MongoDB + клиен
 - Калькулятор НМЦК: `src/components/MainApp.tsx` (экспорт назван `App` — не путать).
 - API: только `server.ts`. Данные: `AppDatabase` в `src/server/db.ts`; pool/client в `src/server/db/postgres.ts` и `src/server/db/mongo.ts`.
 - Контрактные файлы: `src/server/storage/files.ts`, volume `FILE_STORAGE_DIR`.
+- Входящие КП: `src/components/PurchaseOffers.tsx`, `/api/purchases/:id/offers`.
 - Типы: `src/types.ts`. Формулы: `src/utils/math.ts`. Word: `src/utils/docxGenerator.ts`, `src/utils/kpDocxGenerator.ts`.
 - Пакеты: npm + `package-lock.json`. Не переключай на bun/yarn.
 

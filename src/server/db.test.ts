@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   normalizeCounterpartyInput,
   normalizeCounterpartyRecord,
+  normalizeOfferMetadataInput,
   normalizeUserRecord,
   pickSettings,
   validateDocumentInput,
 } from './db';
+import { HttpError } from './errors';
 
 describe('db normalization', () => {
   it('поддерживает служебную записку как тип документа через общие типы', () => {
@@ -181,6 +183,43 @@ describe('db normalization', () => {
       legalAddress: 'г. Казань',
       postalAddress: '',
       tags: ['важно', 'новый'],
+    });
+  });
+});
+
+describe('offer metadata', () => {
+  it('нормализует номер, дату и опциональную компанию', () => {
+    expect(normalizeOfferMetadataInput({
+      registeredNumber: '  12-А  ',
+      registeredDate: '01.09.2026',
+      companyName: '  ООО Вектор  ',
+    })).toEqual({
+      registeredNumber: '12-А',
+      registeredDate: '2026-09-01',
+      companyName: 'ООО Вектор',
+      counterpartyId: null,
+    });
+  });
+
+  it('требует номер и корректную дату', () => {
+    expect(() => normalizeOfferMetadataInput({ registeredDate: '2026-09-01' })).toThrow(HttpError);
+    expect(() => normalizeOfferMetadataInput({ registeredNumber: '1', registeredDate: '2026-13-40' })).toThrow('Укажите дату регистрации КП');
+  });
+
+  it('сохраняет базовые поля при частичном обновлении', () => {
+    expect(normalizeOfferMetadataInput({
+      companyName: '  Новая компания  ',
+      counterpartyId: '4',
+    }, {
+      registeredNumber: '7',
+      registeredDate: '2026-08-21',
+      companyName: 'Старая',
+      counterpartyId: null,
+    })).toEqual({
+      registeredNumber: '7',
+      registeredDate: '2026-08-21',
+      companyName: 'Новая компания',
+      counterpartyId: 4,
     });
   });
 });

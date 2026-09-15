@@ -22,7 +22,7 @@ if (res.status === 401) { localStorage.removeItem('token'); navigate('/login'); 
 
 - Маршруты только в `src/App.tsx` внутри `ProtectedRoute` (кроме `/login`). `/` ведёт на `/purchases`.
 - Основная навигация — `AppShell`: «Закупки», «Отчётность», «Личный кабинет». Не возвращай голые `/kp` или `/memo`.
-- Документы открываются внутри закупки: `/purchases/:id/nmck`, `/purchases/:id/kp`, `/purchases/:id/memo`.
+- Документы открываются внутри закупки: `/purchases/:id/nmck`, `/purchases/:id/offers`, `/purchases/:id/kp`, `/purchases/:id/memo`.
 - Кабинет содержит настройки и смену пароля. Справочник контрагентов — `/cabinet/counterparties`, админка — `/admin`.
 - JWT: `localStorage.token`, пользователь — `localStorage.user` (JSON). Не дублируй cookie-сессии.
 - Списки поставщиков/позиций обновляй иммутабельно (`map`/`filter`). Id новых строк — `Date.now().toString()`.

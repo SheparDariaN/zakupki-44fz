@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 
 const documentLinks = [
   { segment: 'nmck', label: 'НМЦК' },
+  { segment: 'offers', label: 'КП' },
   { segment: 'kp', label: 'Запрос КП' },
   { segment: 'memo', label: 'Служебка' },
 ];

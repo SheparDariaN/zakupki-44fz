@@ -6,7 +6,7 @@ alwaysApply: false
 
 # PostgreSQL + MongoDB
 
-PostgreSQL хранит сущности и связи: `users`, `counterparties`, `purchases`, `purchase_links`, `purchase_documents`. MongoDB хранит только JSON-состояния документов в `document_states`. Контракт хранится файлом на volume.
+PostgreSQL хранит сущности и связи: `users`, `counterparties`, `purchases`, `purchase_links`, `purchase_documents`, `purchase_offers`. MongoDB хранит только JSON-состояния документов в `document_states`. Контракт и входящие КП хранятся файлами на volume.
 
 ```ts
 // ❌ BAD — SQL или Mongo-запрос прямо в обработчике
@@ -29,6 +29,7 @@ app.get('/api/purchases', authenticateToken, async (req, res) => {
 - Настройки пользователя — whitelist полей профиля в `users.settings`; лишнее из body отбрасывается.
 - Документы `nmck`/`kp`/`memo`: `state` ≤ 256 КБ JSON, upsert в Mongo по `(purchaseId, kind)`, метаданные в PostgreSQL по `UNIQUE (purchase_id, kind)`.
 - Контракт `contract`: только `.pdf`/`.docx`, путь строит сервер через `purchaseId`, повторная загрузка удаляет прежний файл и обновляет метаданные.
+- Входящие КП: таблица `purchase_offers`, файлы `{purchaseId}/offers/{uuid}.{ext}` (PDF/JPEG/PNG/WEBP), несколько записей на закупку.
 - Удаление закупки каскадом чистит PostgreSQL, Mongo states и каталог файлов.
 - Пароли только bcrypt. Не логируй hash, JWT и полный `state`.
 - Ошибки домена — `HttpError` со статусом и текстом на русском (`{ error: string }` на границе API).

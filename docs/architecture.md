@@ -23,23 +23,23 @@
 Браузер
   src/main.tsx → App.tsx (react-router-dom)
     AppShell: Закупки / Отчётность / Личный кабинет
-    экраны: Login, Purchases, PurchaseDetail, MainApp, KpRequest, ServiceMemo, AdminPanel, Profile
+    экраны: Login, Purchases, PurchaseDetail, PurchaseOffers, MainApp, KpRequest, ServiceMemo, AdminPanel, Profile
     fetch /api/* + Authorization: Bearer
     docx / file-saver / jszip → скачивание .docx/.zip
         │
 Express  server.ts
   JWT middleware, bcrypt, JSON/multipart limits
         │
-        ├─ PostgreSQL: users, counterparties, purchases, purchase_links, purchase_documents
+        ├─ PostgreSQL: users, counterparties, purchases, purchase_links, purchase_documents, purchase_offers
         ├─ MongoDB: document_states
-        └─ File storage: contract.pdf / contract.docx на volume
+        └─ File storage: contract и входящие КП на volume
 ```
 
 Клиент не ходит в БД. Сервер не генерирует Word.
 
 ## Состояние UI
 
-Закупка — контейнер для карточки, ссылок, документов и контракта. В PostgreSQL хранится владелец (`user_id`), название, цена, год лимитов, ссылки и метаданные документов. Доступ к закупке всегда проверяется по `req.user.id`.
+Закупка — контейнер для карточки, ссылок, документов, входящих КП и контракта. В PostgreSQL хранится владелец (`user_id`), название, цена, год лимитов, ссылки, метаданные документов и реквизиты входящих КП. Доступ к закупке всегда проверяется по `req.user.id`.
 
 `AppState` (калькулятор НМЦК): реквизиты, поставщики, позиции, матрица цен `positionId × supplierId`.
 
@@ -47,7 +47,7 @@ Express  server.ts
 
 `ServiceMemoData` (служебная записка): цель, предмет, адресат шапки, составитель, руководитель контрактной службы, дата.
 
-Вид JSON-документа задаёт `DocumentKind`: `nmck`, `kp`, `memo`. Клиентский реестр `src/documents/registry.ts` связывает вид с маршрутом внутри закупки, названием, генератором DOCX и декларативной схемой полей. Служебный `contract` используется только в API закупки и метаданных файлов, не в реестре клиентских генераторов.
+Вид JSON-документа задаёт `DocumentKind`: `nmck`, `kp`, `memo`. Клиентский реестр `src/documents/registry.ts` связывает вид с маршрутом внутри закупки, названием, генератором DOCX и декларативной схемой полей. Служебный `contract` используется только в API закупки и метаданных файлов, не в реестре клиентских генераторов. Входящие коммерческие предложения поставщиков хранятся отдельно (`purchase_offers` + файлы на volume), не как `kind = kp`.
 
 ## Данные
 
@@ -58,10 +58,11 @@ PostgreSQL — основной источник сущностей:
 - `purchases`: карточки закупок с владельцем, ценой и годом лимитов;
 - `purchase_links`: URL площадок, каскадно удаляются вместе с закупкой;
 - `purchase_documents`: метаданные документов закупки: `kind`, `storage`, `mongo_id` / `file_rel_path`, `mime`, `file_name`; уникальность `(purchase_id, kind)`.
+- `purchase_offers`: входящие КП поставщиков (номер, дата регистрации, опциональная компания/`counterparty_id`, файл).
 
 MongoDB хранит коллекцию `document_states`: `{ purchaseId, kind, state, updatedAt }` с уникальным индексом `(purchaseId, kind)`. Сюда уходят снимки `AppState`, `KpDocxData`, `ServiceMemoData`; сгенерированные DOCX не сохраняются.
 
-Файлы на volume используются только для контракта. Путь формируется сервером как `{FILE_STORAGE_DIR}/purchases/{id}/contract.{ext}`. Повторная загрузка удаляет предыдущий файл и обновляет метаданные в PostgreSQL.
+Файлы на volume: контракт `{FILE_STORAGE_DIR}/purchases/{id}/contract.{ext}` и входящие КП `{FILE_STORAGE_DIR}/purchases/{id}/offers/{uuid}.{ext}`. Повторная загрузка контракта удаляет предыдущий файл. Удаление одного КП удаляет только его файл.
 
 Доступ к данным сейчас централизован в `src/server/db.ts` (`AppDatabase`) и storage-методах. SQL и MongoDB driver не должны растекаться по `server.ts`, UI или документным генераторам; `server.ts` остаётся границей HTTP.
 
@@ -76,7 +77,7 @@ MongoDB хранит коллекцию `document_states`: `{ purchaseId, kind, 
 
 ## HTTP-гигиена
 
-SPA и API на одном origin: CORS не включаем. На ответах: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. В production для статики — CSP `default-src 'self'` (плюс `img-src data:`, `style-src 'unsafe-inline'`). Тело JSON ограничено лимитом снимка `state` (256 КБ + запас). Логин: не больше 10 неуспешных попыток с одного IP за 15 минут.
+SPA и API на одном origin: CORS не включаем. На ответах: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. В production для статики — CSP `default-src 'self'` (плюс `img-src data: blob:`, `frame-src blob:`, `style-src 'unsafe-inline'`). Тело JSON ограничено лимитом снимка `state` (256 КБ + запас). Логин: не больше 10 неуспешных попыток с одного IP за 15 минут.
 
 `GET /api/health` проверяет живые подключения к PostgreSQL и MongoDB и возвращает общий статус для Docker healthcheck.
 
@@ -84,8 +85,8 @@ SPA и API на одном origin: CORS не включаем. На ответа
 
 Архитектура держит минимальную поверхность атаки:
 
-- сервер хранит JSON-состояния документов и не парсит пользовательские `.docx/.pdf`;
-- контрактные файлы проверяются по расширению и magic bytes, но содержимое Office/PDF не интерпретируется;
+- сервер хранит JSON-состояния документов и не парсит пользовательские `.docx/.pdf`/изображения;
+- контрактные файлы и входящие КП проверяются по расширению и magic bytes, но содержимое Office/PDF не интерпретируется;
 - генерация DOCX выполняется только на клиенте;
 - исходящие HTTP-запросы к внешним системам не используются.
 
@@ -95,4 +96,4 @@ SPA и API на одном origin: CORS не включаем. На ответа
 
 Brutalist paper: фон `#E4E3E0`, чернила `#141414`, Georgia/Courier точечно, кнопки `.btn-brutal`. Tailwind 4 без отдельного `tailwind.config`.
 
-Общая оболочка `AppShell` ведёт в разделы «Закупки», «Отчётность», «Личный кабинет». Прямые маршруты документов (`/`, `/kp`, `/memo`) заменены вложенными маршрутами закупки: `/purchases/:id/nmck`, `/purchases/:id/kp`, `/purchases/:id/memo`.
+Общая оболочка `AppShell` ведёт в разделы «Закупки», «Отчётность», «Личный кабинет». Прямые маршруты документов (`/`, `/kp`, `/memo`) заменены вложенными маршрутами закупки: `/purchases/:id/nmck`, `/purchases/:id/offers`, `/purchases/:id/kp`, `/purchases/:id/memo`.

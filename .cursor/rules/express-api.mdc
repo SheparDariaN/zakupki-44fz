@@ -30,6 +30,7 @@ app.get('/api/purchases/:id', authenticateToken, async (req: AuthedRequest, res:
 - Все `/api/purchases/:id*` проверяют владельца закупки (`user_id = req.user.id`), не принимают `userId` из body.
 - Документы закупки: `GET/PUT/DELETE /api/purchases/:id/documents/:kind`, где `kind` только `nmck` | `kp` | `memo`; `state` ≤ 256 КБ.
 - Контракт: `PUT/GET/DELETE /api/purchases/:id/contract`; upload через `multer`, скачивание через API, каталог файлов не static.
+- Входящие КП: `GET/POST /api/purchases/:id/offers`, `GET/PUT/DELETE /api/purchases/:id/offers/:offerId`; PDF/JPEG/PNG/WEBP, не `kind = kp`.
 - Ссылки: `/api/purchases/:id/links` и `/links/:linkId`; `linkId` должен принадлежать той же закупке.
 - JWT: `id`, `username`, `role`; TTL 24h; секрет из `process.env.JWT_SECRET` (в prod обязателен). Типизируй `req.user` через `AuthUser` / `AuthedRequest`, не `req: any`.
 - Ответы: `{ error: string }` на 4xx/5xx (тексты для UI на русском), `{ success: true, ... }` на мутации. Не меняй поля, которые читает UI (`token`, `user`, settings).

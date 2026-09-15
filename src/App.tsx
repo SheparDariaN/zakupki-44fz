@@ -11,6 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import AppShell from './components/AppShell';
 import PurchasesList from './components/PurchasesList';
 import PurchaseDetail from './components/PurchaseDetail';
+import PurchaseOffers from './components/PurchaseOffers';
 import Reports from './components/Reports';
 import { getStoredUser, getToken } from './utils/api';
 
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/purchases" element={withShell(<PurchasesList />)} />
           <Route path="/purchases/:id" element={withShell(<PurchaseDetail />)} />
           <Route path="/purchases/:id/nmck" element={withProtection(<MainApp />)} />
+          <Route path="/purchases/:id/offers" element={withProtection(<PurchaseOffers />)} />
           <Route path="/purchases/:id/kp" element={withProtection(<KpRequest />)} />
           <Route path="/purchases/:id/memo" element={withProtection(<ServiceMemo />)} />
           <Route path="/reports" element={withShell(<Reports />)} />

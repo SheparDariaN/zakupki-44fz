@@ -22,6 +22,7 @@ description: >-
 - PostgreSQL → CRUD в `src/server/db.ts`, pool в `src/server/db/postgres.ts`, миграции в `migrations/postgres/`.
 - MongoDB state документов → CRUD в `src/server/db.ts`, client в `src/server/db/mongo.ts`, миграции в `migrations/mongo/`.
 - Контрактный файл → `src/server/storage/files.ts`; не раздавай volume как static.
+- Входящие КП → `src/components/PurchaseOffers.tsx` + `/api/purchases/:id/offers`; не путать с `kind = kp`.
 - Типы формы/закупки → `src/types.ts`, затем UI и генератор.
 - Формула денег/CV → только `src/utils/math.ts`, затем синхронизируй `MainApp` и `docxGenerator`.
 - Шаблон Word НМЦК → `src/utils/docxGenerator.ts`.

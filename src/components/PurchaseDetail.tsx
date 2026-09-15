@@ -10,6 +10,7 @@ import {
   type PurchaseContext,
   type PurchaseDocumentMetadata,
   type PurchaseLink,
+  type PurchaseOffer,
   type ServiceMemoData,
 } from '../types';
 import AutofillSuggestField from './AutofillSuggestField';
@@ -128,6 +129,7 @@ export default function PurchaseDetail() {
   const [links, setLinks] = useState<PurchaseLink[]>([]);
   const [documents, setDocuments] = useState<PurchaseContext['documents']>({});
   const [contract, setContract] = useState<PurchaseDocumentMetadata | null>(null);
+  const [offers, setOffers] = useState<PurchaseOffer[]>([]);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [budgetYear, setBudgetYear] = useState('');
@@ -211,6 +213,7 @@ export default function PurchaseDetail() {
         setLinks(data.links);
         setDocuments(data.documents);
         setContract(data.contract);
+        setOffers(data.offers ?? []);
       } else if (res.status === 404) {
         showMessage('Закупка не найдена.', true);
       } else {
@@ -546,6 +549,19 @@ export default function PurchaseDetail() {
                 </div>
               );
             })}
+            <div className="flex flex-wrap items-center justify-between gap-3 border border-ink/15 p-3">
+              <div>
+                <p className="text-sm font-bold">КП</p>
+                <p className="text-[10px] opacity-60">
+                  {offers.length > 0 ? `Загружено: ${offers.length}` : 'Ещё не загружены'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link to={`/purchases/${purchase.id}/offers`} className="btn-brutal bg-surface text-[11px] font-bold">
+                  {offers.length > 0 ? 'Открыть' : 'Добавить'}
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 

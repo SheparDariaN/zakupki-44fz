@@ -2,10 +2,11 @@
 name: nmck-documents
 description: >-
   Change NMCK calculations, 44-FZ wording, DOCX templates, KP request letters,
-  service memos, purchase document states, or contract storage. Use when editing
-  math.ts, docxGenerator, kpDocxGenerator, service memo generators/previews,
-  KpDocumentPreview, MainApp price grid, /api/purchases/:id/documents, or
-  /api/purchases/:id/contract.
+  service memos, purchase document states, contract storage, or incoming KP files.
+  Use when editing math.ts, docxGenerator, kpDocxGenerator, service memo
+  generators/previews, KpDocumentPreview, MainApp price grid,
+  /api/purchases/:id/documents, /api/purchases/:id/contract, or
+  /api/purchases/:id/offers.
 ---
 
 # Документы и расчёты НМЦК
@@ -42,3 +43,11 @@ description: >-
 - Контракт — отдельный файл `.pdf` или `.docx`, не клиентский генератор.
 - Загружай через `/api/purchases/:id/contract`, храни на volume, скачивай только через API.
 - Проверяй расширение и magic bytes; не парси Office/PDF на сервере.
+
+## Чеклист входящих КП
+
+- Не путать с исходящим `kind = 'kp'` (запрос КП).
+- Несколько файлов на закупку: таблица `purchase_offers` + volume `purchases/{id}/offers/`.
+- Обязательны номер и дата регистрации; компания опциональна (справочник или текст).
+- Форматы: PDF, JPEG, PNG, WEBP; magic bytes, без парсинга содержимого.
+- В НМЦК подставляй `Вх. № {номер} от {ДД.ММ.ГГГГ}` в `suppliers[].kpDetails` подсказкой, не создавай строки поставщиков автоматически.

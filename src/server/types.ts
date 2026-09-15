@@ -7,6 +7,7 @@ import type {
   PurchaseDocumentMetadata,
   PurchaseLink,
   PurchaseListItem,
+  PurchaseOffer,
   UserSettings,
 } from '../types';
 
@@ -20,6 +21,7 @@ export type StoredPurchaseDocumentMetadata = PurchaseDocumentMetadata;
 export type StoredPurchaseDocumentKind = PurchaseDocumentKind;
 export type StoredPurchaseDocumentCounts = PurchaseDocumentCounts;
 export type StoredPurchaseContext = PurchaseContext;
+export type StoredPurchaseOffer = PurchaseOffer;
 export type { UserSettings };
 
 export interface AuthUser {

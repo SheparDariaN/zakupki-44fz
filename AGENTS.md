@@ -12,7 +12,7 @@ server.ts                   Express: API + Vite middleware (dev) / static SPA (p
 src/server/db.ts            AppDatabase: CRUD пользователей, закупок, документов, контрагентов
 src/server/db/postgres.ts   PostgreSQL pool
 src/server/db/mongo.ts      MongoDB client
-src/server/storage/files.ts Файлы контрактов на volume
+src/server/storage/files.ts Файлы контрактов и входящих КП на volume
 src/App.tsx                 React Router: /login /purchases /reports /cabinet /admin
 src/types.ts                Общие типы AppState, KpDocxData, закупок и документов
 src/components/             Экраны UI (default export = имя файла)
@@ -34,7 +34,7 @@ docs/                       Архитектура, API, предметная о
 | Сервер | Node 22, Express 4, `tsx` в dev, esbuild → `dist/server.cjs` в prod |
 | Auth | JWT (24h) в `Authorization: Bearer`, bcryptjs, роль `admin`/`user` |
 | Данные | PostgreSQL (`pg`) для пользователей/закупок/справочников + MongoDB для JSON-состояний документов |
-| Документы | `docx` + `file-saver`; ZIP запросов КП через `jszip`; контракт хранится файлом на volume |
+| Документы | `docx` + `file-saver`; ZIP запросов КП через `jszip`; контракт и входящие КП хранятся файлами на volume |
 | Деплой | Docker multi-stage, `docker-compose` порт 3000, сервисы `app`/`postgres`/`mongo`, volume `./data/files` |
 
 Менеджер пакетов: **npm** (`package-lock.json`). Docker делает `npm ci`. `bun.lock` — артефакт AI Studio, не источник истины. Не подключай Prisma, SQLite, `@google/genai`, `motion` без явной задачи.
@@ -75,6 +75,7 @@ docker compose up -d --build  # нужны JWT_SECRET и переменные Б
 | PostgreSQL / MongoDB CRUD | `src/server/db.ts` (`AppDatabase`), pool/client в `src/server/db/postgres.ts` и `src/server/db/mongo.ts` |
 | Пользователи / закупки / ссылки / состояния документов | методы `AppDatabase` в `src/server/db.ts` |
 | Контрактные файлы | `src/server/storage/files.ts` |
+| Входящие КП | `src/components/PurchaseOffers.tsx`, `/api/purchases/:id/offers`, таблица `purchase_offers` |
 | Формулы НМЦК | `src/utils/math.ts`, тесты `src/utils/*.test.ts`, затем `MainApp.tsx` и `docxGenerator.ts` |
 | Шаблон обоснования | `src/utils/docxGenerator.ts` |
 | Шаблон запроса КП | `src/utils/kpDocxGenerator.ts`, превью `KpDocumentPreview.tsx` |

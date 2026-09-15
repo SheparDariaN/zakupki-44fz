@@ -9,7 +9,7 @@ import AppNav from './AppNav';
 import ThemeToggle from './ThemeToggle';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
-import { applyNmckAutofill, resolveAutofill, suggestionsForField, type AutofillSuggestion, type AutofillUserSettings } from '../documents/autofill';
+import { applyNmckAutofill, previewAutofillValue, resolveAutofill, suggestionsForField, type AutofillSuggestion, type AutofillUserSettings } from '../documents/autofill';
 import type { AutofillSourceKind } from '../documents/templateTypes';
 import { formatDateRu } from '../utils/morphology';
 import AutofillPanel from './AutofillPanel';
@@ -18,6 +18,7 @@ import ImportModal from './ImportModal';
 import { buildPurchaseAutofillContext, calculateMinSupplierTotal, saveCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeNmckState } from '../documents/templateNormalization';
 import { applyColumnPaste, importTable, parseColumnPasteValues, parsePrice, type ColumnPasteField } from '../utils/tableImport';
+import { buildOfferSupplierSuggestions } from '../utils/incomingKp';
 
 const initialState: AppState = {
   requisites: {
@@ -151,6 +152,24 @@ export default function App() {
     setDownloadMessage(result.changed.length > 0
       ? `Поле заполнено: ${result.changed[0].label}.`
       : 'Нет данных для подстановки.');
+    setDownloadMessageError(false);
+  };
+
+  const applyOfferSuggestion = (supplierId: string, suggestion: AutofillSuggestion) => {
+    const kpUpdate = suggestion.updates?.find((update) => update.fieldKey === 'supplierKpDetails');
+    const nameUpdate = suggestion.updates?.find((update) => update.fieldKey === 'supplierName');
+    const kpDetails = previewAutofillValue(kpUpdate?.value ?? suggestion.value);
+    const nextName = nameUpdate ? previewAutofillValue(nameUpdate.value) : undefined;
+
+    setState((prev) => ({
+      ...prev,
+      suppliers: prev.suppliers.map((supplier) => (
+        supplier.id === supplierId
+          ? { ...supplier, kpDetails, name: nextName ?? supplier.name }
+          : supplier
+      )),
+    }));
+    setDownloadMessage(`Подставлено КП: ${kpDetails}${nextName ? `; ${nextName}` : ''}.`);
     setDownloadMessageError(false);
   };
 
@@ -491,7 +510,7 @@ export default function App() {
                 <Plus className="w-3.5 h-3.5" /> Добавить
               </button>
             </div>
-            <div className="p-0 overflow-x-auto">
+            <div className="overflow-visible p-0">
               <table className="w-full data-grid border-none">
                 <thead>
                   <tr>
@@ -501,17 +520,38 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.suppliers.map((supplier) => (
+                  {state.suppliers.map((supplier) => {
+                    const offerSuggestions = buildOfferSupplierSuggestions(purchaseContext?.offers ?? [], supplier);
+                    return (
                     <tr key={supplier.id} className="group hover:bg-ink/5 transition-colors">
-                      <td className="p-0"><input type="text" className={inputClass} value={supplier.name} onChange={e => setState({ ...state, suppliers: state.suppliers.map(s => s.id === supplier.id ? { ...s, name: e.target.value } : s) })} /></td>
-                      <td className="mono p-0"><input type="text" className={inputClass} value={supplier.kpDetails} onChange={e => setState({ ...state, suppliers: state.suppliers.map(s => s.id === supplier.id ? { ...s, kpDetails: e.target.value } : s) })} /></td>
+                      <td className="p-0 align-top">
+                        <AutofillSuggestField
+                          fieldKey="supplierName"
+                          className={inputClass}
+                          value={supplier.name}
+                          onChange={(value) => setState({ ...state, suppliers: state.suppliers.map((item) => item.id === supplier.id ? { ...item, name: value } : item) })}
+                          suggestions={suggestionsForField(offerSuggestions, 'supplierName')}
+                          onPick={(suggestion) => applyOfferSuggestion(supplier.id, suggestion)}
+                        />
+                      </td>
+                      <td className="mono p-0 align-top">
+                        <AutofillSuggestField
+                          fieldKey="supplierKpDetails"
+                          className={inputClass}
+                          value={supplier.kpDetails}
+                          onChange={(value) => setState({ ...state, suppliers: state.suppliers.map((item) => item.id === supplier.id ? { ...item, kpDetails: value } : item) })}
+                          suggestions={suggestionsForField(offerSuggestions, 'supplierKpDetails')}
+                          onPick={(suggestion) => applyOfferSuggestion(supplier.id, suggestion)}
+                        />
+                      </td>
                       <td className="text-center p-0 align-middle">
                         <button onClick={() => removeSupplier(supplier.id)} className="text-ink/30 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100 mx-auto" title="Удалить">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -131,7 +131,9 @@ export interface Purchase {
   updatedAt: number;
 }
 
-export type PurchaseDocumentCounts = Record<PurchaseDocumentKind, number>;
+export type PurchaseDocumentCounts = Record<PurchaseDocumentKind, number> & {
+  offers: number;
+};
 
 export interface PurchaseListItem extends Purchase {
   documentCounts: PurchaseDocumentCounts;
@@ -160,6 +162,19 @@ export interface PurchaseDocumentMetadata {
   updatedAt: number;
 }
 
+export interface PurchaseOffer {
+  id: number;
+  purchaseId: number;
+  registeredNumber: string;
+  registeredDate: string;
+  companyName: string;
+  counterpartyId: number | null;
+  mime: string;
+  fileName: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type PurchaseDocumentStates = Partial<Record<DocumentKind, unknown>>;
 
 export interface PurchaseContext {
@@ -167,5 +182,6 @@ export interface PurchaseContext {
   links: PurchaseLink[];
   documents: PurchaseDocumentStates;
   contract: PurchaseDocumentMetadata | null;
+  offers: PurchaseOffer[];
   settings: UserSettings;
 }
