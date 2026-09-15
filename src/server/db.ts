@@ -1,28 +1,35 @@
-import fs from 'fs/promises';
-import path from 'path';
 import bcrypt from 'bcryptjs';
-import { isDocumentKind } from '../types';
+import type pg from 'pg';
+import { type Collection, type Db } from 'mongodb';
+import { DOCUMENT_KINDS, isDocumentKind, isPurchaseDocumentKind, type DocumentKind } from '../types';
 import { HttpError } from './errors';
+import { getMongoDb, pingMongo } from './db/mongo';
+import { getPostgresPool, pingPostgres } from './db/postgres';
 import {
   isUserRole,
   type Counterparty,
-  type DatabaseFile,
   type DocumentType,
   type PublicUser,
   type StoredCounterparty,
   type StoredDocument,
+  type StoredPurchase,
+  type StoredPurchaseContext,
+  type StoredPurchaseDocumentCounts,
+  type StoredPurchaseDocumentKind,
+  type StoredPurchaseDocumentMetadata,
+  type StoredPurchaseLink,
+  type StoredPurchaseListItem,
   type StoredUser,
   type UserRole,
   type UserSettings,
 } from './types';
 
-const DB_FILE = process.env.DB_FILE || path.join(process.cwd(), 'database.json');
-
 export const MIN_PASSWORD_LENGTH = 5;
 export const MAX_STATE_BYTES = 256 * 1024;
-export const MAX_DOCUMENTS_PER_USER = 50;
 export const MAX_DOCUMENT_NAME_LENGTH = 500;
-export const DOCUMENT_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+export const MAX_PURCHASE_NAME_LENGTH = 500;
+export const MAX_PURCHASE_LINK_URL_LENGTH = 2048;
+export const MAX_PURCHASE_LINK_TITLE_LENGTH = 500;
 
 const EMPTY_SETTINGS: UserSettings = {
   customer: '',
@@ -54,7 +61,82 @@ const EMPTY_COUNTERPARTY_FIELDS = {
   postalAddress: '',
 };
 
-let dbInstance: JSONDatabase | null = null;
+type UserRow = {
+  id: number;
+  username: string;
+  password: string;
+  role: string;
+  settings: unknown;
+  must_change_password: boolean;
+};
+
+type CounterpartyRow = {
+  id: number;
+  company_name: string;
+  short_name: string | null;
+  full_name: string | null;
+  director: string | null;
+  director_genitive: string | null;
+  director_dative: string | null;
+  email: string | null;
+  phone: string | null;
+  legal_address: string | null;
+  postal_address: string | null;
+  tags: unknown;
+  created_at_ms: string | number;
+  updated_at_ms: string | number;
+};
+
+type DocumentHistoryRecord = StoredDocument & { _id?: unknown };
+type DocumentStateRecord = {
+  _id: string;
+  purchaseId: number;
+  kind: DocumentKind;
+  state: unknown;
+  updatedAt: number;
+};
+
+type PurchaseRow = {
+  id: number;
+  user_id: number;
+  name: string;
+  price: string | number | null;
+  budget_year: number | null;
+  created_at_ms: string | number;
+  updated_at_ms: string | number;
+};
+
+type PurchaseListRow = PurchaseRow & {
+  nmck_count: string | number;
+  kp_count: string | number;
+  memo_count: string | number;
+  contract_count: string | number;
+  links_count: string | number;
+};
+
+type PurchaseLinkRow = {
+  id: number;
+  purchase_id: number;
+  url: string;
+  title: string;
+  created_at_ms: string | number;
+  updated_at_ms: string | number;
+};
+
+type PurchaseDocumentRow = {
+  id: number;
+  purchase_id: number;
+  kind: string;
+  storage: string;
+  mongo_id: string | null;
+  file_rel_path: string | null;
+  mime: string | null;
+  file_name: string | null;
+  created_at_ms: string | number;
+  updated_at_ms: string | number;
+};
+
+let dbInstance: AppDatabase | null = null;
 
 function asString(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
@@ -95,7 +177,7 @@ function asStringList(value: unknown, fallback: string[]): string[] {
   return fallback;
 }
 
-function pickSettings(input: unknown, base: UserSettings = EMPTY_SETTINGS): UserSettings {
+export function pickSettings(input: unknown, base: UserSettings = EMPTY_SETTINGS): UserSettings {
   const src = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
   return {
     customer: asString(src.customer, base.customer),
@@ -119,352 +201,905 @@ function pickSettings(input: unknown, base: UserSettings = EMPTY_SETTINGS): User
   };
 }
 
-function measureJsonBytes(value: unknown): number {
+export function normalizeUserRecord(raw: unknown): StoredUser | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const u = raw as Record<string, unknown>;
+  const role: UserRole = isUserRole(u.role) ? u.role : 'user';
+  const id = typeof u.id === 'number' ? u.id : Number(u.id);
+
+  if (!Number.isInteger(id) || id <= 0 || typeof u.username !== 'string' || typeof u.password !== 'string') {
+    return null;
+  }
+
+  return {
+    id,
+    username: u.username,
+    password: u.password,
+    role,
+    settings: pickSettings(u.settings),
+    mustChangePassword: typeof u.mustChangePassword === 'boolean' ? u.mustChangePassword : false,
+  };
+}
+
+export function normalizeCounterpartyRecord(raw: unknown): StoredCounterparty | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const c = raw as Record<string, unknown>;
+  const id = typeof c.id === 'number' ? c.id : Number(c.id);
+  if (!Number.isInteger(id) || id <= 0) return null;
+
+  const companyName = trimString(c.companyName);
+  if (!companyName) return null;
+
+  const createdAt = typeof c.createdAt === 'number' ? c.createdAt : Number(c.createdAt) || Date.now();
+  const updatedAt = typeof c.updatedAt === 'number' ? c.updatedAt : Number(c.updatedAt) || createdAt;
+
+  return {
+    id,
+    companyName,
+    shortName: trimString(c.shortName),
+    fullName: trimString(c.fullName),
+    director: trimString(c.director),
+    directorGenitive: trimString(c.directorGenitive),
+    directorDative: trimString(c.directorDative),
+    email: trimString(c.email),
+    phone: trimString(c.phone),
+    legalAddress: trimString(c.legalAddress),
+    postalAddress: trimString(c.postalAddress),
+    tags: normalizeTags(c.tags),
+    createdAt,
+    updatedAt,
+  };
+}
+
+export function normalizeCounterpartyInput(
+  input: unknown,
+  base?: Counterparty
+): Omit<Counterparty, 'id' | 'createdAt' | 'updatedAt'> {
+  const src = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+  const companyName = trimString(src.companyName, base?.companyName);
+
+  if (!companyName) {
+    throw new HttpError(400, 'Укажите название контрагента');
+  }
+
+  return {
+    companyName,
+    shortName: trimString(src.shortName, base?.shortName ?? EMPTY_COUNTERPARTY_FIELDS.shortName),
+    fullName: trimString(src.fullName, base?.fullName ?? EMPTY_COUNTERPARTY_FIELDS.fullName),
+    director: trimString(src.director, base?.director ?? EMPTY_COUNTERPARTY_FIELDS.director),
+    directorGenitive: trimString(src.directorGenitive, base?.directorGenitive ?? EMPTY_COUNTERPARTY_FIELDS.directorGenitive),
+    directorDative: trimString(src.directorDative, base?.directorDative ?? EMPTY_COUNTERPARTY_FIELDS.directorDative),
+    email: trimString(src.email, base?.email ?? EMPTY_COUNTERPARTY_FIELDS.email),
+    phone: trimString(src.phone, base?.phone ?? EMPTY_COUNTERPARTY_FIELDS.phone),
+    legalAddress: trimString(src.legalAddress, base?.legalAddress ?? EMPTY_COUNTERPARTY_FIELDS.legalAddress),
+    postalAddress: trimString(src.postalAddress, base?.postalAddress ?? EMPTY_COUNTERPARTY_FIELDS.postalAddress),
+    tags: Array.isArray(src.tags) ? normalizeTags(src.tags) : base?.tags ?? [],
+  };
+}
+
+export function measureJsonBytes(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value), 'utf8');
 }
 
-class JSONDatabase {
-  data: DatabaseFile = { users: [], documents: [], counterparties: [] };
-  private saveQueue: Promise<void> = Promise.resolve();
+export function validateDocumentInput(
+  userId: number,
+  name: unknown,
+  state: unknown,
+  type: unknown = 'nmck',
+  id = 0,
+  createdAt = Date.now()
+): StoredDocument {
+  if (typeof name !== 'string' || name.trim() === '') {
+    throw new HttpError(400, 'Укажите название документа');
+  }
+  const trimmedName = name.trim().slice(0, MAX_DOCUMENT_NAME_LENGTH);
+
+  const resolvedType = type === undefined || type === null || type === '' ? 'nmck' : type;
+  if (!isDocumentKind(resolvedType)) {
+    throw new HttpError(400, 'Тип документа должен быть nmck, kp или memo');
+  }
+
+  if (state === null || typeof state !== 'object') {
+    throw new HttpError(400, 'Некорректный снимок документа');
+  }
+
+  if (measureJsonBytes(state) > MAX_STATE_BYTES) {
+    throw new HttpError(400, 'Снимок документа слишком большой');
+  }
+
+  return { id, userId, name: trimmedName, state, type: resolvedType as DocumentType, createdAt };
+}
+
+function parseNullableMoney(value: unknown, fallback: number | null = null): number | null {
+  if (value === undefined) return fallback;
+  if (value === null || value === '') return null;
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.replace(',', '.')) : NaN;
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 9999999999999.99) {
+    throw new HttpError(400, 'Цена закупки должна быть неотрицательным числом');
+  }
+  return Math.round(parsed * 100) / 100;
+}
+
+function parseNullableBudgetYear(value: unknown, fallback: number | null = null): number | null {
+  if (value === undefined) return fallback;
+  if (value === null || value === '') return null;
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+  if (!Number.isInteger(parsed) || parsed < 1900 || parsed > 3000) {
+    throw new HttpError(400, 'Год лимитов должен быть целым числом');
+  }
+  return parsed;
+}
+
+export function normalizePurchaseInput(
+  input: unknown,
+  base?: Pick<StoredPurchase, 'name' | 'price' | 'budgetYear'>
+): Pick<StoredPurchase, 'name' | 'price' | 'budgetYear'> {
+  const src = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+  const rawName = src.name === undefined ? base?.name : src.name;
+  const name = trimString(rawName).slice(0, MAX_PURCHASE_NAME_LENGTH);
+
+  if (!name) {
+    throw new HttpError(400, 'Укажите название закупки');
+  }
+
+  return {
+    name,
+    price: parseNullableMoney(src.price, base?.price ?? null),
+    budgetYear: parseNullableBudgetYear(src.budgetYear ?? src.budget_year, base?.budgetYear ?? null),
+  };
+}
+
+export function normalizePurchaseLinkInput(
+  input: unknown,
+  base?: Pick<StoredPurchaseLink, 'url' | 'title'>
+): Pick<StoredPurchaseLink, 'url' | 'title'> {
+  const src = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+  const url = trimString(src.url === undefined ? base?.url : src.url).slice(0, MAX_PURCHASE_LINK_URL_LENGTH);
+  const title = trimString(src.title === undefined ? base?.title : src.title).slice(0, MAX_PURCHASE_LINK_TITLE_LENGTH);
+
+  if (!url) {
+    throw new HttpError(400, 'Укажите ссылку закупки');
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new HttpError(400, 'Некорректная ссылка закупки');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new HttpError(400, 'Ссылка закупки должна начинаться с http:// или https://');
+  }
+
+  return { url, title };
+}
+
+export function validatePurchaseDocumentState(kind: unknown, state: unknown): DocumentKind {
+  if (!isDocumentKind(kind)) {
+    throw new HttpError(400, 'Тип документа должен быть nmck, kp или memo');
+  }
+  if (state === null || typeof state !== 'object') {
+    throw new HttpError(400, 'Некорректный снимок документа');
+  }
+  if (measureJsonBytes(state) > MAX_STATE_BYTES) {
+    throw new HttpError(400, 'Снимок документа слишком большой');
+  }
+  return kind;
+}
+
+function mapUserRow(row: UserRow): StoredUser {
+  return {
+    id: Number(row.id),
+    username: row.username,
+    password: row.password,
+    role: isUserRole(row.role) ? row.role : 'user',
+    settings: pickSettings(row.settings),
+    mustChangePassword: row.must_change_password,
+  };
+}
+
+function mapCounterpartyRow(row: CounterpartyRow): StoredCounterparty {
+  return {
+    id: Number(row.id),
+    companyName: row.company_name,
+    shortName: row.short_name ?? '',
+    fullName: row.full_name ?? '',
+    director: row.director ?? '',
+    directorGenitive: row.director_genitive ?? '',
+    directorDative: row.director_dative ?? '',
+    email: row.email ?? '',
+    phone: row.phone ?? '',
+    legalAddress: row.legal_address ?? '',
+    postalAddress: row.postal_address ?? '',
+    tags: normalizeTags(row.tags),
+    createdAt: Number(row.created_at_ms),
+    updatedAt: Number(row.updated_at_ms),
+  };
+}
+
+function mapPurchaseRow(row: PurchaseRow): StoredPurchase {
+  return {
+    id: Number(row.id),
+    userId: Number(row.user_id),
+    name: row.name,
+    price: row.price === null ? null : Number(row.price),
+    budgetYear: row.budget_year === null ? null : Number(row.budget_year),
+    createdAt: Number(row.created_at_ms),
+    updatedAt: Number(row.updated_at_ms),
+  };
+}
+
+function emptyDocumentCounts(): StoredPurchaseDocumentCounts {
+  return { nmck: 0, kp: 0, memo: 0, contract: 0 };
+}
+
+function mapPurchaseListRow(row: PurchaseListRow): StoredPurchaseListItem {
+  return {
+    ...mapPurchaseRow(row),
+    documentCounts: {
+      nmck: Number(row.nmck_count),
+      kp: Number(row.kp_count),
+      memo: Number(row.memo_count),
+      contract: Number(row.contract_count),
+    },
+    linksCount: Number(row.links_count),
+  };
+}
+
+function mapPurchaseLinkRow(row: PurchaseLinkRow): StoredPurchaseLink {
+  return {
+    id: Number(row.id),
+    purchaseId: Number(row.purchase_id),
+    url: row.url,
+    title: row.title,
+    createdAt: Number(row.created_at_ms),
+    updatedAt: Number(row.updated_at_ms),
+  };
+}
+
+function mapPurchaseDocumentRow(row: PurchaseDocumentRow): StoredPurchaseDocumentMetadata {
+  if (!isPurchaseDocumentKind(row.kind)) {
+    throw new HttpError(500, 'Некорректный тип документа закупки в базе данных');
+  }
+  if (row.storage !== 'mongo' && row.storage !== 'file') {
+    throw new HttpError(500, 'Некорректный тип хранения документа закупки в базе данных');
+  }
+
+  return {
+    id: Number(row.id),
+    purchaseId: Number(row.purchase_id),
+    kind: row.kind,
+    storage: row.storage,
+    mongoId: row.mongo_id,
+    fileRelPath: row.file_rel_path,
+    mime: row.mime,
+    fileName: row.file_name,
+    createdAt: Number(row.created_at_ms),
+    updatedAt: Number(row.updated_at_ms),
+  };
+}
+
+export class AppDatabase {
+  constructor(
+    private readonly pgPool: pg.Pool,
+    private readonly mongoDb: Db
+  ) {}
 
   async init() {
+    await this.ensureDefaultAdmin();
+    await this.ensureMongoIndexes();
+  }
+
+  async health(): Promise<{ postgres: boolean; mongo: boolean }> {
+    const [postgres, mongo] = await Promise.all([pingPostgres(), pingMongo()]);
+    return { postgres, mongo };
+  }
+
+  async getUserByUsername(username: string): Promise<StoredUser | null> {
+    const result = await this.pgPool.query<UserRow>('select * from users where username = $1', [username]);
+    return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+  }
+
+  async getUserById(id: number): Promise<StoredUser | null> {
+    const result = await this.pgPool.query<UserRow>('select * from users where id = $1', [id]);
+    return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+  }
+
+  async listUsers(): Promise<PublicUser[]> {
+    const result = await this.pgPool.query<Pick<UserRow, 'id' | 'username' | 'role'>>(
+      'select id, username, role from users order by id'
+    );
+    return result.rows.map((u) => ({ id: Number(u.id), username: u.username, role: isUserRole(u.role) ? u.role : 'user' }));
+  }
+
+  async createUser(username: string, passwordHash: string, role: UserRole = 'user'): Promise<{ lastID: number }> {
     try {
-      const fileData = await fs.readFile(DB_FILE, 'utf-8');
-      const parsed: unknown = JSON.parse(fileData);
-      this.data = this.normalizeFile(parsed);
-    } catch (e: unknown) {
-      const code = e && typeof e === 'object' && 'code' in e ? (e as NodeJS.ErrnoException).code : undefined;
-      if (code === 'ENOENT') {
-        await this.save();
-      } else {
-        throw e;
-      }
-    }
-
-    const admin = this.data.users.find((u) => u.username === 'admin');
-    if (!admin) {
-      const salt = bcrypt.genSaltSync(10);
-      const hash = bcrypt.hashSync('admin', salt);
-      this.data.users.push({
-        id: this.getNextId('users'),
-        username: 'admin',
-        password: hash,
-        role: 'admin',
-        settings: { ...EMPTY_SETTINGS },
-        mustChangePassword: true,
-      });
-      await this.save();
-      console.log('Default admin user created (admin / admin)');
-    } else if (!admin.mustChangePassword && bcrypt.compareSync('admin', admin.password)) {
-      admin.mustChangePassword = true;
-      await this.save();
-    }
-  }
-
-  private normalizeFile(raw: unknown): DatabaseFile {
-    const obj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-    const users = Array.isArray(obj.users) ? obj.users.map((u) => this.normalizeUser(u)).filter((u): u is StoredUser => u !== null) : [];
-    const documents = Array.isArray(obj.documents)
-      ? obj.documents.map((d) => this.normalizeDocument(d)).filter((d): d is StoredDocument => d !== null)
-      : [];
-    const counterparties = Array.isArray(obj.counterparties)
-      ? obj.counterparties.map((c) => this.normalizeCounterparty(c)).filter((c): c is StoredCounterparty => c !== null)
-      : [];
-    return { users, documents, counterparties };
-  }
-
-  private normalizeUser(raw: unknown): StoredUser | null {
-    if (!raw || typeof raw !== 'object') return null;
-    const u = raw as Record<string, unknown>;
-    if (typeof u.id !== 'number' || typeof u.username !== 'string' || typeof u.password !== 'string') return null;
-    const role: UserRole = isUserRole(u.role) ? u.role : 'user';
-    return {
-      id: u.id,
-      username: u.username,
-      password: u.password,
-      role,
-      settings: pickSettings(u.settings),
-      mustChangePassword: typeof u.mustChangePassword === 'boolean' ? u.mustChangePassword : false,
-    };
-  }
-
-  private normalizeDocument(raw: unknown): StoredDocument | null {
-    if (!raw || typeof raw !== 'object') return null;
-    const d = raw as Record<string, unknown>;
-    if (typeof d.id !== 'number' || typeof d.userId !== 'number' || typeof d.createdAt !== 'number') return null;
-    return {
-      id: d.id,
-      userId: d.userId,
-      name: asString(d.name),
-      state: d.state ?? {},
-      type: isDocumentKind(d.type) ? d.type : 'nmck',
-      createdAt: d.createdAt,
-    };
-  }
-
-  private normalizeCounterparty(raw: unknown): StoredCounterparty | null {
-    if (!raw || typeof raw !== 'object') return null;
-    const c = raw as Record<string, unknown>;
-    if (typeof c.id !== 'number') return null;
-
-    const companyName = trimString(c.companyName);
-    if (!companyName) return null;
-
-    const createdAt = typeof c.createdAt === 'number' ? c.createdAt : Date.now();
-    const updatedAt = typeof c.updatedAt === 'number' ? c.updatedAt : createdAt;
-
-    return {
-      id: c.id,
-      companyName,
-      shortName: trimString(c.shortName),
-      fullName: trimString(c.fullName),
-      director: trimString(c.director),
-      directorGenitive: trimString(c.directorGenitive),
-      directorDative: trimString(c.directorDative),
-      email: trimString(c.email),
-      phone: trimString(c.phone),
-      legalAddress: trimString(c.legalAddress),
-      postalAddress: trimString(c.postalAddress),
-      tags: normalizeTags(c.tags),
-      createdAt,
-      updatedAt,
-    };
-  }
-
-  async save() {
-    const saveJob = this.saveQueue.then(() => this.writeFile());
-    this.saveQueue = saveJob.catch(() => undefined);
-    return saveJob;
-  }
-
-  private async writeFile() {
-    await fs.mkdir(path.dirname(DB_FILE), { recursive: true });
-    const serialized = JSON.stringify(this.data, null, 2);
-    const tmpFile = `${DB_FILE}.${process.pid}.tmp`;
-    try {
-      await fs.writeFile(tmpFile, serialized, 'utf-8');
-      await fs.rename(tmpFile, DB_FILE);
+      const result = await this.pgPool.query<{ id: number }>(
+        `insert into users (username, password, role, settings, must_change_password)
+         values ($1, $2, $3, $4::jsonb, false)
+         returning id`,
+        [username, passwordHash, role, JSON.stringify(pickSettings({}))]
+      );
+      return { lastID: Number(result.rows[0].id) };
     } catch (err) {
-      await fs.unlink(tmpFile).catch(() => undefined);
+      if (isUniqueViolation(err)) {
+        throw new HttpError(400, 'Пользователь с таким именем уже существует');
+      }
       throw err;
     }
   }
 
-  private getNextId(table: 'users' | 'documents' | 'counterparties') {
-    const records = this.data[table];
-    if (records.length === 0) return 1;
-    return Math.max(...records.map((r) => r.id)) + 1;
-  }
-
-  async getUserByUsername(username: string): Promise<StoredUser | null> {
-    return this.data.users.find((u) => u.username === username) ?? null;
-  }
-
-  async getUserById(id: number): Promise<StoredUser | null> {
-    return this.data.users.find((u) => u.id === id) ?? null;
-  }
-
-  async listUsers(): Promise<PublicUser[]> {
-    return this.data.users.map((u) => ({ id: u.id, username: u.username, role: u.role }));
-  }
-
-  async createUser(username: string, passwordHash: string, role: UserRole = 'user'): Promise<{ lastID: number }> {
-    const existing = this.data.users.find((u) => u.username === username);
-    if (existing) {
-      throw new HttpError(400, 'Пользователь с таким именем уже существует');
-    }
-
-    const id = this.getNextId('users');
-    this.data.users.push({
-      id,
-      username,
-      password: passwordHash,
-      role,
-      settings: { ...EMPTY_SETTINGS },
-      mustChangePassword: false,
-    });
-    await this.save();
-    return { lastID: id };
-  }
-
   async updateUserPassword(userId: number, passwordHash: string): Promise<void> {
-    const user = this.data.users.find((u) => u.id === userId);
-    if (!user) {
+    const result = await this.pgPool.query(
+      'update users set password = $1, must_change_password = false where id = $2',
+      [passwordHash, userId]
+    );
+    if (result.rowCount === 0) {
       throw new HttpError(404, 'Пользователь не найден');
     }
-    user.password = passwordHash;
-    user.mustChangePassword = false;
-    await this.save();
   }
 
   async getUserSettings(userId: number): Promise<UserSettings> {
-    const user = this.data.users.find((u) => u.id === userId);
-    return user ? pickSettings(user.settings) : { ...EMPTY_SETTINGS };
+    const result = await this.pgPool.query<Pick<UserRow, 'settings'>>('select settings from users where id = $1', [userId]);
+    return result.rows[0] ? pickSettings(result.rows[0].settings) : { ...EMPTY_SETTINGS };
   }
 
   async updateUserSettings(userId: number, settings: unknown): Promise<UserSettings> {
-    const user = this.data.users.find((u) => u.id === userId);
-    if (!user) {
+    const current = await this.getUserById(userId);
+    if (!current) {
       throw new HttpError(404, 'Пользователь не найден');
     }
-    user.settings = pickSettings(settings, user.settings);
-    await this.save();
-    return user.settings;
+
+    const nextSettings = pickSettings(settings, current.settings);
+    await this.pgPool.query('update users set settings = $1::jsonb where id = $2', [
+      JSON.stringify(nextSettings),
+      userId,
+    ]);
+    return nextSettings;
   }
 
-  async addDocument(userId: number, name: unknown, state: unknown, type: unknown = 'nmck'): Promise<StoredDocument> {
-    if (typeof name !== 'string' || name.trim() === '') {
-      throw new HttpError(400, 'Укажите название документа');
-    }
-    const trimmedName = name.trim().slice(0, MAX_DOCUMENT_NAME_LENGTH);
+  async listPurchasesByUser(userId: number): Promise<StoredPurchaseListItem[]> {
+    const result = await this.pgPool.query<PurchaseListRow>(
+      `select p.id, p.user_id, p.name, p.price, p.budget_year,
+              floor(extract(epoch from p.created_at) * 1000)::bigint as created_at_ms,
+              floor(extract(epoch from p.updated_at) * 1000)::bigint as updated_at_ms,
+              coalesce(d.nmck_count, 0)::int as nmck_count,
+              coalesce(d.kp_count, 0)::int as kp_count,
+              coalesce(d.memo_count, 0)::int as memo_count,
+              coalesce(d.contract_count, 0)::int as contract_count,
+              coalesce(l.links_count, 0)::int as links_count
+         from purchases p
+         left join (
+           select purchase_id,
+                  count(*) filter (where kind = 'nmck') as nmck_count,
+                  count(*) filter (where kind = 'kp') as kp_count,
+                  count(*) filter (where kind = 'memo') as memo_count,
+                  count(*) filter (where kind = 'contract') as contract_count
+             from purchase_documents
+            group by purchase_id
+         ) d on d.purchase_id = p.id
+         left join (
+           select purchase_id, count(*) as links_count
+             from purchase_links
+            group by purchase_id
+         ) l on l.purchase_id = p.id
+        where p.user_id = $1
+        order by p.updated_at desc, p.id desc`,
+      [userId]
+    );
+    return result.rows.map(mapPurchaseListRow);
+  }
 
-    const resolvedType = type === undefined || type === null || type === '' ? 'nmck' : type;
-    if (!isDocumentKind(resolvedType)) {
+  async createPurchase(userId: number, input: unknown): Promise<StoredPurchase> {
+    const values = normalizePurchaseInput(input);
+    const result = await this.pgPool.query<PurchaseRow>(
+      `insert into purchases (user_id, name, price, budget_year)
+       values ($1, $2, $3, $4)
+       returning id, user_id, name, price, budget_year,
+                 floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+                 floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms`,
+      [userId, values.name, values.price, values.budgetYear]
+    );
+    return mapPurchaseRow(result.rows[0]);
+  }
+
+  async getPurchaseById(userId: number, purchaseId: number): Promise<StoredPurchase | null> {
+    return this.getPurchaseForUser(userId, purchaseId);
+  }
+
+  async updatePurchase(userId: number, purchaseId: number, input: unknown): Promise<StoredPurchase> {
+    const current = await this.requirePurchaseForUser(userId, purchaseId);
+    const values = normalizePurchaseInput(input, current);
+    const result = await this.pgPool.query<PurchaseRow>(
+      `update purchases
+          set name = $1,
+              price = $2,
+              budget_year = $3,
+              updated_at = now()
+        where id = $4 and user_id = $5
+        returning id, user_id, name, price, budget_year,
+                  floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+                  floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms`,
+      [values.name, values.price, values.budgetYear, purchaseId, userId]
+    );
+    return mapPurchaseRow(result.rows[0]);
+  }
+
+  async deletePurchase(userId: number, purchaseId: number): Promise<StoredPurchaseDocumentMetadata[]> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const documents = await this.listPurchaseDocumentMetadata(userId, purchaseId);
+    await this.documentStates().deleteMany({ purchaseId });
+    await this.pgPool.query('delete from purchases where id = $1 and user_id = $2', [purchaseId, userId]);
+    return documents;
+  }
+
+  async listPurchaseLinks(userId: number, purchaseId: number): Promise<StoredPurchaseLink[]> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const result = await this.pgPool.query<PurchaseLinkRow>(
+      `select id, purchase_id, url, title,
+              floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+              floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms
+         from purchase_links
+        where purchase_id = $1
+        order by created_at desc, id desc`,
+      [purchaseId]
+    );
+    return result.rows.map(mapPurchaseLinkRow);
+  }
+
+  async createPurchaseLink(userId: number, purchaseId: number, input: unknown): Promise<StoredPurchaseLink> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const values = normalizePurchaseLinkInput(input);
+    const result = await this.pgPool.query<PurchaseLinkRow>(
+      `insert into purchase_links (purchase_id, url, title)
+       values ($1, $2, $3)
+       returning id, purchase_id, url, title,
+                 floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+                 floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms`,
+      [purchaseId, values.url, values.title]
+    );
+    await this.touchPurchase(purchaseId);
+    return mapPurchaseLinkRow(result.rows[0]);
+  }
+
+  async updatePurchaseLink(userId: number, purchaseId: number, linkId: number, input: unknown): Promise<StoredPurchaseLink> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const current = await this.getPurchaseLinkForPurchase(purchaseId, linkId);
+    if (!current) {
+      throw new HttpError(404, 'Ссылка закупки не найдена');
+    }
+    const values = normalizePurchaseLinkInput(input, current);
+    const result = await this.pgPool.query<PurchaseLinkRow>(
+      `update purchase_links
+          set url = $1,
+              title = $2,
+              updated_at = now()
+        where id = $3 and purchase_id = $4
+        returning id, purchase_id, url, title,
+                  floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+                  floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms`,
+      [values.url, values.title, linkId, purchaseId]
+    );
+    await this.touchPurchase(purchaseId);
+    return mapPurchaseLinkRow(result.rows[0]);
+  }
+
+  async deletePurchaseLink(userId: number, purchaseId: number, linkId: number): Promise<void> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const result = await this.pgPool.query('delete from purchase_links where id = $1 and purchase_id = $2', [
+      linkId,
+      purchaseId,
+    ]);
+    if (result.rowCount === 0) {
+      throw new HttpError(404, 'Ссылка закупки не найдена');
+    }
+    await this.touchPurchase(purchaseId);
+  }
+
+  async upsertPurchaseDocumentState(
+    userId: number,
+    purchaseId: number,
+    kind: unknown,
+    state: unknown
+  ): Promise<StoredPurchaseDocumentMetadata> {
+    const documentKind = validatePurchaseDocumentState(kind, state);
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const mongoId = documentStateId(purchaseId, documentKind);
+    const now = Date.now();
+    await this.documentStates().updateOne(
+      { _id: mongoId },
+      { $set: { purchaseId, kind: documentKind, state, updatedAt: now } },
+      { upsert: true }
+    );
+
+    const result = await this.pgPool.query<PurchaseDocumentRow>(
+      `insert into purchase_documents (purchase_id, kind, storage, mongo_id)
+       values ($1, $2, 'mongo', $3)
+       on conflict (purchase_id, kind) do update
+          set storage = 'mongo',
+              mongo_id = excluded.mongo_id,
+              file_rel_path = null,
+              mime = null,
+              file_name = null,
+              updated_at = now()
+       returning id, purchase_id, kind, storage, mongo_id, file_rel_path, mime, file_name,
+                 floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+                 floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms`,
+      [purchaseId, documentKind, mongoId]
+    );
+    await this.touchPurchase(purchaseId);
+    return mapPurchaseDocumentRow(result.rows[0]);
+  }
+
+  async getPurchaseDocumentState(
+    userId: number,
+    purchaseId: number,
+    kind: unknown
+  ): Promise<{ metadata: StoredPurchaseDocumentMetadata; state: unknown } | null> {
+    if (!isDocumentKind(kind)) {
       throw new HttpError(400, 'Тип документа должен быть nmck, kp или memo');
     }
-
-    if (state === null || typeof state !== 'object') {
-      throw new HttpError(400, 'Некорректный снимок документа');
-    }
-
-    const stateBytes = measureJsonBytes(state);
-    if (stateBytes > MAX_STATE_BYTES) {
-      throw new HttpError(400, 'Снимок документа слишком большой');
-    }
-
-    const pruned = this.pruneExpiredDocuments();
-
-    const userDocs = this.data.documents.filter((d) => d.userId === userId);
-    if (userDocs.length >= MAX_DOCUMENTS_PER_USER) {
-      if (pruned) await this.save();
-      throw new HttpError(400, 'Превышен лимит документов');
-    }
-
-    const doc: StoredDocument = {
-      id: this.getNextId('documents'),
-      userId,
-      name: trimmedName,
-      state,
-      type: resolvedType,
-      createdAt: Date.now(),
-    };
-    this.data.documents.push(doc);
-    await this.save();
-    return doc;
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const metadata = await this.getPurchaseDocumentMetadata(userId, purchaseId, kind);
+    if (!metadata?.mongoId) return null;
+    const record = await this.documentStates().findOne({ _id: metadata.mongoId }, { projection: { _id: 0 } });
+    return record ? { metadata, state: record.state } : null;
   }
 
-  async getDocuments(userId: number): Promise<StoredDocument[]> {
-    const pruned = this.pruneExpiredDocuments();
-    if (pruned) {
-      await this.save();
+  async deletePurchaseDocumentState(userId: number, purchaseId: number, kind: unknown): Promise<void> {
+    if (!isDocumentKind(kind)) {
+      throw new HttpError(400, 'Тип документа должен быть nmck, kp или memo');
     }
+    await this.requirePurchaseForUser(userId, purchaseId);
+    await this.documentStates().deleteOne({ _id: documentStateId(purchaseId, kind) });
+    await this.pgPool.query(
+      "delete from purchase_documents where purchase_id = $1 and kind = $2 and storage = 'mongo'",
+      [purchaseId, kind]
+    );
+    await this.touchPurchase(purchaseId);
+  }
 
-    return this.data.documents
-      .filter((d) => d.userId === userId)
-      .sort((a, b) => b.createdAt - a.createdAt);
+  async getPurchaseContext(userId: number, purchaseId: number): Promise<StoredPurchaseContext> {
+    const [purchase, links, settings] = await Promise.all([
+      this.requirePurchaseForUser(userId, purchaseId),
+      this.listPurchaseLinks(userId, purchaseId),
+      this.getUserSettings(userId),
+    ]);
+    const records = await this.documentStates()
+      .find({ purchaseId, kind: { $in: [...DOCUMENT_KINDS] } }, { projection: { _id: 0 } })
+      .toArray();
+    const documents: StoredPurchaseContext['documents'] = {};
+    for (const record of records) {
+      documents[record.kind] = record.state;
+    }
+    const contract = await this.getPurchaseDocumentMetadata(userId, purchaseId, 'contract');
+    return { purchase, links, documents, contract, settings };
+  }
+
+  async listPurchaseDocumentMetadata(userId: number, purchaseId: number): Promise<StoredPurchaseDocumentMetadata[]> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const result = await this.pgPool.query<PurchaseDocumentRow>(
+      `select id, purchase_id, kind, storage, mongo_id, file_rel_path, mime, file_name,
+              floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+              floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms
+         from purchase_documents
+        where purchase_id = $1
+        order by updated_at desc, id desc`,
+      [purchaseId]
+    );
+    return result.rows.map(mapPurchaseDocumentRow);
+  }
+
+  async getPurchaseDocumentMetadata(
+    userId: number,
+    purchaseId: number,
+    kind: StoredPurchaseDocumentKind
+  ): Promise<StoredPurchaseDocumentMetadata | null> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const result = await this.pgPool.query<PurchaseDocumentRow>(
+      `select id, purchase_id, kind, storage, mongo_id, file_rel_path, mime, file_name,
+              floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+              floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms
+         from purchase_documents
+        where purchase_id = $1 and kind = $2`,
+      [purchaseId, kind]
+    );
+    return result.rows[0] ? mapPurchaseDocumentRow(result.rows[0]) : null;
+  }
+
+  async upsertContractMetadata(
+    userId: number,
+    purchaseId: number,
+    file: { fileRelPath: string; mime: string; fileName: string }
+  ): Promise<StoredPurchaseDocumentMetadata> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const result = await this.pgPool.query<PurchaseDocumentRow>(
+      `insert into purchase_documents (purchase_id, kind, storage, file_rel_path, mime, file_name)
+       values ($1, 'contract', 'file', $2, $3, $4)
+       on conflict (purchase_id, kind) do update
+          set storage = 'file',
+              mongo_id = null,
+              file_rel_path = excluded.file_rel_path,
+              mime = excluded.mime,
+              file_name = excluded.file_name,
+              updated_at = now()
+       returning id, purchase_id, kind, storage, mongo_id, file_rel_path, mime, file_name,
+                 floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+                 floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms`,
+      [purchaseId, file.fileRelPath, file.mime, file.fileName]
+    );
+    await this.touchPurchase(purchaseId);
+    return mapPurchaseDocumentRow(result.rows[0]);
+  }
+
+  async deleteContractMetadata(userId: number, purchaseId: number): Promise<StoredPurchaseDocumentMetadata | null> {
+    await this.requirePurchaseForUser(userId, purchaseId);
+    const current = await this.getPurchaseDocumentMetadata(userId, purchaseId, 'contract');
+    if (!current) return null;
+    await this.pgPool.query("delete from purchase_documents where purchase_id = $1 and kind = 'contract'", [purchaseId]);
+    await this.touchPurchase(purchaseId);
+    return current;
   }
 
   async listCounterparties(): Promise<StoredCounterparty[]> {
-    return [...this.data.counterparties].sort((a, b) => b.createdAt - a.createdAt);
+    const result = await this.pgPool.query<CounterpartyRow>(
+      `select id, company_name, short_name, full_name, director, director_genitive, director_dative,
+              email, phone, legal_address, postal_address, tags,
+              floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+              floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms
+         from counterparties
+        order by created_at desc, id desc`
+    );
+    return result.rows.map(mapCounterpartyRow);
   }
 
   async createCounterparty(input: unknown): Promise<StoredCounterparty> {
-    const values = this.normalizeCounterpartyInput(input);
-    const now = Date.now();
-    const counterparty: StoredCounterparty = {
-      id: this.getNextId('counterparties'),
-      companyName: values.companyName,
-      shortName: values.shortName,
-      fullName: values.fullName,
-      director: values.director,
-      directorGenitive: values.directorGenitive,
-      directorDative: values.directorDative,
-      email: values.email,
-      phone: values.phone,
-      legalAddress: values.legalAddress,
-      postalAddress: values.postalAddress,
-      tags: values.tags,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const values = normalizeCounterpartyInput(input);
+    const result = await this.pgPool.query<CounterpartyRow>(
+      `insert into counterparties (
+         company_name, short_name, full_name, director, director_genitive, director_dative,
+         email, phone, legal_address, postal_address, tags
+       )
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+       returning id, company_name, short_name, full_name, director, director_genitive, director_dative,
+                 email, phone, legal_address, postal_address, tags,
+                 floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+                 floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms`,
+      [
+        values.companyName,
+        values.shortName,
+        values.fullName,
+        values.director,
+        values.directorGenitive,
+        values.directorDative,
+        values.email,
+        values.phone,
+        values.legalAddress,
+        values.postalAddress,
+        JSON.stringify(values.tags),
+      ]
+    );
 
-    this.data.counterparties.push(counterparty);
-    await this.save();
-    return counterparty;
+    return mapCounterpartyRow(result.rows[0]);
   }
 
   async updateCounterparty(id: number, input: unknown): Promise<StoredCounterparty> {
-    const counterparty = this.data.counterparties.find((c) => c.id === id);
-    if (!counterparty) {
+    const current = await this.getCounterpartyById(id);
+    if (!current) {
       throw new HttpError(404, 'Контрагент не найден');
     }
 
-    const values = this.normalizeCounterpartyInput(input, counterparty);
-    counterparty.companyName = values.companyName;
-    counterparty.shortName = values.shortName;
-    counterparty.fullName = values.fullName;
-    counterparty.director = values.director;
-    counterparty.directorGenitive = values.directorGenitive;
-    counterparty.directorDative = values.directorDative;
-    counterparty.email = values.email;
-    counterparty.phone = values.phone;
-    counterparty.legalAddress = values.legalAddress;
-    counterparty.postalAddress = values.postalAddress;
-    counterparty.tags = values.tags;
-    counterparty.updatedAt = Date.now();
+    const values = normalizeCounterpartyInput(input, current);
+    const result = await this.pgPool.query<CounterpartyRow>(
+      `update counterparties
+          set company_name = $1,
+              short_name = $2,
+              full_name = $3,
+              director = $4,
+              director_genitive = $5,
+              director_dative = $6,
+              email = $7,
+              phone = $8,
+              legal_address = $9,
+              postal_address = $10,
+              tags = $11::jsonb,
+              updated_at = now()
+        where id = $12
+        returning id, company_name, short_name, full_name, director, director_genitive, director_dative,
+                  email, phone, legal_address, postal_address, tags,
+                  floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+                  floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms`,
+      [
+        values.companyName,
+        values.shortName,
+        values.fullName,
+        values.director,
+        values.directorGenitive,
+        values.directorDative,
+        values.email,
+        values.phone,
+        values.legalAddress,
+        values.postalAddress,
+        JSON.stringify(values.tags),
+        id,
+      ]
+    );
 
-    await this.save();
-    return counterparty;
+    return mapCounterpartyRow(result.rows[0]);
   }
 
   async deleteCounterparty(id: number): Promise<void> {
-    const index = this.data.counterparties.findIndex((c) => c.id === id);
-    if (index === -1) {
+    const result = await this.pgPool.query('delete from counterparties where id = $1', [id]);
+    if (result.rowCount === 0) {
       throw new HttpError(404, 'Контрагент не найден');
     }
-
-    this.data.counterparties.splice(index, 1);
-    await this.save();
   }
 
-  private normalizeCounterpartyInput(input: unknown, base?: Counterparty): Omit<Counterparty, 'id' | 'createdAt' | 'updatedAt'> {
-    const src = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
-    const companyName = trimString(src.companyName, base?.companyName);
+  async importLegacyUsersAndCounterparties(users: StoredUser[], counterparties: StoredCounterparty[]): Promise<void> {
+    const client = await this.pgPool.connect();
+    try {
+      await client.query('begin');
+      for (const user of users) {
+        await client.query(
+          `insert into users (id, username, password, role, settings, must_change_password)
+           values ($1, $2, $3, $4, $5::jsonb, $6)
+           on conflict (username) do update
+              set password = excluded.password,
+                  role = excluded.role,
+                  settings = excluded.settings,
+                  must_change_password = excluded.must_change_password`,
+          [user.id, user.username, user.password, user.role, JSON.stringify(pickSettings(user.settings)), user.mustChangePassword]
+        );
+      }
 
-    if (!companyName) {
-      throw new HttpError(400, 'Укажите название контрагента');
+      for (const counterparty of counterparties) {
+        await client.query(
+          `insert into counterparties (
+             id, company_name, short_name, full_name, director, director_genitive, director_dative,
+             email, phone, legal_address, postal_address, tags, created_at, updated_at
+           )
+           values (
+             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb,
+             to_timestamp($13::double precision / 1000),
+             to_timestamp($14::double precision / 1000)
+           )
+           on conflict (id) do update
+              set company_name = excluded.company_name,
+                  short_name = excluded.short_name,
+                  full_name = excluded.full_name,
+                  director = excluded.director,
+                  director_genitive = excluded.director_genitive,
+                  director_dative = excluded.director_dative,
+                  email = excluded.email,
+                  phone = excluded.phone,
+                  legal_address = excluded.legal_address,
+                  postal_address = excluded.postal_address,
+                  tags = excluded.tags,
+                  created_at = excluded.created_at,
+                  updated_at = excluded.updated_at`,
+          [
+            counterparty.id,
+            counterparty.companyName,
+            counterparty.shortName,
+            counterparty.fullName,
+            counterparty.director,
+            counterparty.directorGenitive,
+            counterparty.directorDative,
+            counterparty.email,
+            counterparty.phone,
+            counterparty.legalAddress,
+            counterparty.postalAddress,
+            JSON.stringify(counterparty.tags),
+            counterparty.createdAt,
+            counterparty.updatedAt,
+          ]
+        );
+      }
+
+      await client.query(
+        "select setval(pg_get_serial_sequence('users', 'id'), greatest(coalesce((select max(id) from users), 1), 1), true)"
+      );
+      await client.query(
+        "select setval(pg_get_serial_sequence('counterparties', 'id'), greatest(coalesce((select max(id) from counterparties), 1), 1), true)"
+      );
+      await client.query('commit');
+    } catch (err) {
+      await client.query('rollback');
+      throw err;
+    } finally {
+      client.release();
     }
-
-    return {
-      companyName,
-      shortName: trimString(src.shortName, base?.shortName ?? EMPTY_COUNTERPARTY_FIELDS.shortName),
-      fullName: trimString(src.fullName, base?.fullName ?? EMPTY_COUNTERPARTY_FIELDS.fullName),
-      director: trimString(src.director, base?.director ?? EMPTY_COUNTERPARTY_FIELDS.director),
-      directorGenitive: trimString(src.directorGenitive, base?.directorGenitive ?? EMPTY_COUNTERPARTY_FIELDS.directorGenitive),
-      directorDative: trimString(src.directorDative, base?.directorDative ?? EMPTY_COUNTERPARTY_FIELDS.directorDative),
-      email: trimString(src.email, base?.email ?? EMPTY_COUNTERPARTY_FIELDS.email),
-      phone: trimString(src.phone, base?.phone ?? EMPTY_COUNTERPARTY_FIELDS.phone),
-      legalAddress: trimString(src.legalAddress, base?.legalAddress ?? EMPTY_COUNTERPARTY_FIELDS.legalAddress),
-      postalAddress: trimString(src.postalAddress, base?.postalAddress ?? EMPTY_COUNTERPARTY_FIELDS.postalAddress),
-      tags: Array.isArray(src.tags) ? normalizeTags(src.tags) : base?.tags ?? [],
-    };
   }
 
-  private pruneExpiredDocuments(): boolean {
-    const cutoff = Date.now() - DOCUMENT_TTL_MS;
-    const kept = this.data.documents.filter((d) => d.createdAt > cutoff);
-    if (kept.length === this.data.documents.length) return false;
-    this.data.documents = kept;
-    return true;
+  private async ensureDefaultAdmin() {
+    const admin = await this.getUserByUsername('admin');
+    if (!admin) {
+      const salt = bcrypt.genSaltSync(10);
+      const hash = bcrypt.hashSync('admin', salt);
+      await this.pgPool.query(
+        `insert into users (username, password, role, settings, must_change_password)
+         values ($1, $2, 'admin', $3::jsonb, true)`,
+        ['admin', hash, JSON.stringify(pickSettings({}))]
+      );
+      console.log('Default admin user created (admin / admin)');
+    } else if (!admin.mustChangePassword && bcrypt.compareSync('admin', admin.password)) {
+      await this.pgPool.query('update users set must_change_password = true where id = $1', [admin.id]);
+    }
+  }
+
+  private async ensureMongoIndexes() {
+    await this.documentStates().createIndex({ purchaseId: 1, kind: 1 }, { unique: true });
+  }
+
+  private async getCounterpartyById(id: number): Promise<StoredCounterparty | null> {
+    const result = await this.pgPool.query<CounterpartyRow>(
+      `select id, company_name, short_name, full_name, director, director_genitive, director_dative,
+              email, phone, legal_address, postal_address, tags,
+              floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+              floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms
+         from counterparties
+        where id = $1`,
+      [id]
+    );
+    return result.rows[0] ? mapCounterpartyRow(result.rows[0]) : null;
+  }
+
+  private async getPurchaseForUser(userId: number, purchaseId: number): Promise<StoredPurchase | null> {
+    const result = await this.pgPool.query<PurchaseRow>(
+      `select id, user_id, name, price, budget_year,
+              floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+              floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms
+         from purchases
+        where id = $1 and user_id = $2`,
+      [purchaseId, userId]
+    );
+    return result.rows[0] ? mapPurchaseRow(result.rows[0]) : null;
+  }
+
+  private async requirePurchaseForUser(userId: number, purchaseId: number): Promise<StoredPurchase> {
+    const purchase = await this.getPurchaseForUser(userId, purchaseId);
+    if (!purchase) {
+      throw new HttpError(404, 'Закупка не найдена');
+    }
+    return purchase;
+  }
+
+  private async getPurchaseLinkForPurchase(purchaseId: number, linkId: number): Promise<StoredPurchaseLink | null> {
+    const result = await this.pgPool.query<PurchaseLinkRow>(
+      `select id, purchase_id, url, title,
+              floor(extract(epoch from created_at) * 1000)::bigint as created_at_ms,
+              floor(extract(epoch from updated_at) * 1000)::bigint as updated_at_ms
+         from purchase_links
+        where id = $1 and purchase_id = $2`,
+      [linkId, purchaseId]
+    );
+    return result.rows[0] ? mapPurchaseLinkRow(result.rows[0]) : null;
+  }
+
+  private async touchPurchase(purchaseId: number): Promise<void> {
+    await this.pgPool.query('update purchases set updated_at = now() where id = $1', [purchaseId]);
+  }
+
+  private documentStates(): Collection<DocumentStateRecord> {
+    return this.mongoDb.collection<DocumentStateRecord>('document_states');
   }
 }
 
-export async function getDb(): Promise<JSONDatabase> {
+function documentStateId(purchaseId: number, kind: DocumentKind): string {
+  return `${purchaseId}:${kind}`;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && 'code' in err && (err as { code?: unknown }).code === '23505');
+}
+
+export async function getDb(): Promise<AppDatabase> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = new JSONDatabase();
+  const pgPool = getPostgresPool();
+  const mongoDb = await getMongoDb();
+  dbInstance = new AppDatabase(pgPool, mongoDb);
   await dbInstance.init();
 
   return dbInstance;
 }
-

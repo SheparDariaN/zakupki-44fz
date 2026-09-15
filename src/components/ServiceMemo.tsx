@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, RefreshCw, User } from 'lucide-react';
-import { ServiceMemoData } from '../types';
+import { useParams } from 'react-router-dom';
+import { Download, RefreshCw, Save, User } from 'lucide-react';
+import { ServiceMemoData, type PurchaseContext } from '../types';
 import AppNav from './AppNav';
 import ServiceMemoPreview from './ServiceMemoPreview';
 import { apiFetch, readApiError } from '../utils/api';
@@ -9,7 +10,7 @@ import { applyMemoAutofill, resolveAutofill, suggestionsForField, syncMemoReques
 import type { AutofillSourceKind } from '../documents/templateTypes';
 import AutofillPanel from './AutofillPanel';
 import AutofillSuggestField from './AutofillSuggestField';
-import { describeCurrentPurchase, loadCurrentPurchase } from '../utils/currentPurchase';
+import { buildPurchaseAutofillContext, describeCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeMemoState } from '../documents/templateNormalization';
 import { DEFAULT_MEMO_ADDRESSEE } from '../utils/serviceMemoDocxGenerator';
 
@@ -26,42 +27,54 @@ const defaultValues: ServiceMemoData = {
 };
 
 export default function ServiceMemo() {
+  const { id: purchaseId } = useParams<{ id: string }>();
   const [data, setData] = useState<ServiceMemoData>(defaultValues);
   const [userSettings, setUserSettings] = useState<AutofillUserSettings>();
-  const [currentPurchase] = useState(() => loadCurrentPurchase());
+  const [purchaseContext, setPurchaseContext] = useState<PurchaseContext | null>(null);
   const [autofillSource, setAutofillSource] = useState<'all' | AutofillSourceKind>('all');
   const [autofillOverwrite, setAutofillOverwrite] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState('');
   const [downloadMessageError, setDownloadMessageError] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    async function fetchSettings() {
+    async function fetchPurchaseContext() {
+      if (!purchaseId) return;
       try {
-        const res = await apiFetch('/api/user/settings');
+        const res = await apiFetch(`/api/purchases/${purchaseId}/context`);
         if (!active) return;
 
         if (res.ok) {
-          const settings = await res.json();
-          setUserSettings(settings);
-          setData(prev => applyMemoAutofill(prev, { userSettings: settings }, {
-            excludeFieldKeys: ['addressee', 'contractServiceHead', 'memoContractServiceHead'],
-          }).state);
+          const context: PurchaseContext = await res.json();
+          const savedState = context.documents.memo;
+          const nextData = savedState
+            ? normalizeMemoState(savedState as ServiceMemoData)
+            : applyMemoAutofill(defaultValues, { userSettings: context.settings }, {
+              excludeFieldKeys: ['addressee', 'contractServiceHead', 'memoContractServiceHead'],
+            }).state;
+          setPurchaseContext(context);
+          setUserSettings(context.settings);
+          setData(nextData);
         }
       } catch (err) {
         console.error(err);
       }
     }
 
-    void fetchSettings();
+    void fetchPurchaseContext();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [purchaseId]);
 
+  const currentPurchase = useMemo(
+    () => buildPurchaseAutofillContext(purchaseContext),
+    [purchaseContext]
+  );
   const autofillContext = useMemo(() => ({
     userSettings,
     currentPurchase,
@@ -117,6 +130,42 @@ export default function ServiceMemo() {
     setDownloadMessageError(false);
   };
 
+  const saveDocumentState = async (
+    successMessage = 'Состояние служебной записки сохранено.',
+    failurePrefix = 'Не удалось сохранить состояние служебной записки'
+  ) => {
+    setDownloadMessage('');
+    setDownloadMessageError(false);
+    const documentData = normalizeMemoState(syncMemoRequesterInflection(data, userSettings));
+    if (!purchaseId) return false;
+
+    setIsSaving(true);
+    try {
+      const res = await apiFetch(`/api/purchases/${purchaseId}/documents/memo`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: documentData })
+      });
+      if (!res.ok) {
+        setDownloadMessage(`${failurePrefix}: ${await readApiError(res)}`);
+        setDownloadMessageError(true);
+        return false;
+      }
+
+      setPurchaseContext(prev => prev ? { ...prev, documents: { ...prev.documents, memo: documentData } } : prev);
+      setDownloadMessage(successMessage);
+      setDownloadMessageError(false);
+      return true;
+    } catch (error) {
+      console.error("Failed to save purchase document", error);
+      setDownloadMessage(`${failurePrefix}: ошибка сети.`);
+      setDownloadMessageError(true);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleGenerate = async () => {
     setIsGenerating(true);
     setDownloadMessage('');
@@ -125,26 +174,10 @@ export default function ServiceMemo() {
 
     try {
       await DOCUMENT_REGISTRY.memo.generate(documentData);
-
-      try {
-        const res = await apiFetch('/api/user/documents', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: DOCUMENT_REGISTRY.memo.getHistoryName(documentData),
-            state: documentData,
-            type: DOCUMENT_REGISTRY.memo.kind
-          })
-        });
-        if (!res.ok) {
-          setDownloadMessage(`Документ скачан, но история не сохранена: ${await readApiError(res)}`);
-          setDownloadMessageError(true);
-        }
-      } catch (error) {
-        console.error("Failed to save document history", error);
-        setDownloadMessage('Документ скачан, но история не сохранена: ошибка сети.');
-        setDownloadMessageError(true);
-      }
+      await saveDocumentState(
+        'Документ скачан, состояние закупки сохранено.',
+        'Документ скачан, но состояние закупки не сохранено'
+      );
     } catch (error) {
       console.error("Failed to generate service memo docx", error);
       setDownloadMessage('Не удалось сформировать служебную записку. Проверьте данные и попробуйте ещё раз.');
@@ -177,11 +210,19 @@ export default function ServiceMemo() {
         </div>
         <div className="flex gap-3 items-center shrink-0 flex-wrap justify-end">
           <AppNav />
-          <a href="/profile" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
+          <a href="/cabinet" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
             <User className="w-4 h-4" /> Личный кабинет
           </a>
           <button onClick={resetState} className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-yellow-100 text-sm font-bold">
             <RefreshCw className="w-3.5 h-3.5" /> Сбросить
+          </button>
+          <button
+            type="button"
+            onClick={() => void saveDocumentState()}
+            disabled={isSaving}
+            className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-green-50 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Save className="w-3.5 h-3.5" /> {isSaving ? 'Сохранение...' : 'Сохранить'}
           </button>
           <button
             onClick={handleGenerate}

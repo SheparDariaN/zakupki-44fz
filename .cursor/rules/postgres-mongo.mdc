@@ -1,0 +1,34 @@
+---
+description: PostgreSQL, MongoDB, миграции и файловое хранение закупок
+globs: "src/server/**"
+alwaysApply: false
+---
+
+# PostgreSQL + MongoDB
+
+PostgreSQL хранит сущности и связи: `users`, `counterparties`, `purchases`, `purchase_links`, `purchase_documents`. MongoDB хранит только JSON-состояния документов в `document_states`. Контракт хранится файлом на volume.
+
+```ts
+// ❌ BAD — SQL или Mongo-запрос прямо в обработчике
+app.get('/api/purchases', async (_req, res) => {
+  const rows = await pool.query('select * from purchases');
+});
+
+// ✅ GOOD — обработчик вызывает AppDatabase, db.ts владеет SQL/Mongo
+app.get('/api/purchases', authenticateToken, async (req, res) => {
+  const db = await getDb();
+  res.json(await db.listPurchasesByUser(req.user.id));
+});
+```
+
+- PostgreSQL pool создавай из `DATABASE_URL`; MongoDB client — из `MONGODB_URI` и при необходимости `MONGODB_DATABASE`.
+- Текущий слой данных централизован в `src/server/db.ts` (`AppDatabase`). Не добавляй SQL/Mongo-запросы в `server.ts`; при росте можно выделить отдельные репозитории отдельной задачей.
+- Миграции обязательны с `up` и `down`: `migrations/postgres/` (`node-pg-migrate`) и `migrations/mongo/` (`migrate-mongo`).
+- `npm run migrate:up`: сначала PostgreSQL, потом MongoDB. `npm run migrate:down`: обратный порядок.
+- Bootstrap `admin`/`admin` создаётся только если пользователя `admin` нет. Не сбрасывай пароль при каждом старте.
+- Настройки пользователя — whitelist полей профиля в `users.settings`; лишнее из body отбрасывается.
+- Документы `nmck`/`kp`/`memo`: `state` ≤ 256 КБ JSON, upsert в Mongo по `(purchaseId, kind)`, метаданные в PostgreSQL по `UNIQUE (purchase_id, kind)`.
+- Контракт `contract`: только `.pdf`/`.docx`, путь строит сервер через `purchaseId`, повторная загрузка удаляет прежний файл и обновляет метаданные.
+- Удаление закупки каскадом чистит PostgreSQL, Mongo states и каталог файлов.
+- Пароли только bcrypt. Не логируй hash, JWT и полный `state`.
+- Ошибки домена — `HttpError` со статусом и текстом на русском (`{ error: string }` на границе API).

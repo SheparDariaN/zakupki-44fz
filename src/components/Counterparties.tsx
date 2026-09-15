@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Pencil, Plus, RefreshCw, Search, Tag, Trash2, User, X } from 'lucide-react';
-import AppNav from './AppNav';
+import { Check, Pencil, Plus, RefreshCw, Search, Tag, Trash2, X } from 'lucide-react';
 import InflectedNameField from './InflectedNameField';
 import { apiFetch, readApiError } from '../utils/api';
 import type { Counterparty } from '../types';
@@ -262,7 +261,7 @@ export default function Counterparties() {
   const canSave = Boolean(form.companyName.trim()) && !saving;
 
   return (
-    <div className="h-screen overflow-y-auto scroll-area bg-[#E4E3E0] p-8 font-sans text-[#141414]">
+    <div className="pb-8 font-sans text-[#141414]">
       <div className="max-w-6xl mx-auto">
         <header className="flex justify-between items-center mb-8 border-b border-[#141414] pb-4 gap-4">
           <div className="min-w-0">
@@ -270,10 +269,6 @@ export default function Counterparties() {
             <p className="text-[10px] opacity-60">Общий список организаций для запросов коммерческих предложений.</p>
           </div>
           <div className="flex gap-3 items-center shrink-0 flex-wrap justify-end">
-            <AppNav />
-            <a href="/profile" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
-              <User className="w-4 h-4" /> Личный кабинет
-            </a>
             <button
               type="button"
               onClick={() => void fetchCounterparties()}

@@ -1,92 +1,37 @@
-import fs from 'fs/promises';
-import os from 'os';
-import path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import {
+  normalizeCounterpartyInput,
+  normalizeCounterpartyRecord,
+  normalizeUserRecord,
+  pickSettings,
+  validateDocumentInput,
+} from './db';
 
-describe('JSONDatabase', () => {
-  let tempDir = '';
-  let dbFile = '';
-
-  beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zakupki-db-'));
-    dbFile = path.join(tempDir, 'database.json');
-    process.env.DB_FILE = dbFile;
-    vi.resetModules();
-  });
-
-  afterEach(async () => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-    vi.resetModules();
-    delete process.env.DB_FILE;
-    await fs.rm(tempDir, { recursive: true, force: true });
-  });
-
-  async function loadDb(initialData?: unknown) {
-    if (initialData !== undefined) {
-      await fs.writeFile(dbFile, JSON.stringify(initialData, null, 2), 'utf-8');
-    }
-
-    const { getDb } = await import('./db');
-    return getDb();
-  }
-
-  it('сериализует параллельные сохранения документов в одном процессе', async () => {
-    const db = await loadDb();
-    const names = Array.from({ length: 20 }, (_, index) => `Документ ${index + 1}`);
-
-    await Promise.all(names.map((name, index) => db.addDocument(1, name, { index }, 'nmck')));
-
-    const raw = JSON.parse(await fs.readFile(dbFile, 'utf-8')) as {
-      documents: Array<{ name: string; userId: number }>;
-    };
-    const userDocuments = raw.documents.filter((document) => document.userId === 1);
-
-    expect(userDocuments).toHaveLength(names.length);
-    expect(new Set(userDocuments.map((document) => document.name))).toEqual(new Set(names));
-  });
-
-  it('добавляет пустую коллекцию контрагентов для старого файла БД', async () => {
-    const db = await loadDb({ users: [], documents: [] });
-
-    expect(await db.listCounterparties()).toEqual([]);
-
-    const raw = JSON.parse(await fs.readFile(dbFile, 'utf-8')) as { counterparties?: unknown };
-    expect(raw.counterparties).toEqual([]);
-  });
-
-  it('поддерживает служебную записку как тип документа', async () => {
-    const db = await loadDb({ users: [], documents: [], counterparties: [] });
-
-    const document = await db.addDocument(1, 'Служебная записка', { subjectIntro: 'Закупка ПО' }, 'memo');
-
-    expect(document.type).toBe('memo');
-    await expect(db.addDocument(1, 'Неверный тип', {}, 'letter')).rejects.toMatchObject({
-      status: 400,
-      message: 'Тип документа должен быть nmck, kp или memo',
+describe('db normalization', () => {
+  it('поддерживает служебную записку как тип документа через общие типы', () => {
+    expect(validateDocumentInput(1, 'Служебная записка', { subjectIntro: 'Закупка ПО' }, 'memo')).toMatchObject({
+      type: 'memo',
     });
+    expect(() => validateDocumentInput(1, 'Неверный тип', {}, 'letter')).toThrow('Тип документа должен быть nmck, kp или memo');
+    expect(normalizeUserRecord({
+      id: 1,
+      username: 'user',
+      password: 'hash',
+      role: 'bad-role',
+      settings: {},
+      mustChangePassword: false,
+    })).toMatchObject({ role: 'user' });
   });
 
-  it('нормализует расширенные настройки профиля и отбрасывает лишние поля', async () => {
-    const db = await loadDb({
-      users: [
-        {
-          id: 1,
-          username: 'user',
-          password: 'hash',
-          role: 'user',
-          settings: {
-            customer: 'ГКУ «ЦИТ Кузбасса»',
-            executorName: 'Иванов Иван Иванович',
-          },
-          mustChangePassword: false,
-        },
-      ],
-      documents: [],
-      counterparties: [],
+  it('нормализует расширенные настройки профиля и отбрасывает лишние поля', () => {
+    const initial = pickSettings({
+      customer: 'ГКУ «ЦИТ Кузбасса»',
+      executorName: 'Иванов Иван Иванович',
+      defaultServiceConditions: 'Срок оказания услуг: 30 дней\nГарантия 12 месяцев',
+      defaultServicePlace: 'г. Кемерово',
     });
 
-    expect(await db.getUserSettings(1)).toEqual({
+    expect(initial).toEqual({
       customer: 'ГКУ «ЦИТ Кузбасса»',
       executorPosition: '',
       executorName: 'Иванов Иван Иванович',
@@ -101,10 +46,11 @@ describe('JSONDatabase', () => {
       contractServiceHeadName: '',
       contractServiceHeadNameGenitive: '',
       contractServiceHeadNameDative: '',
-      defaultServiceConditions: [],
+      defaultServiceConditions: ['Срок оказания услуг: 30 дней', 'Гарантия 12 месяцев'],
     });
+    expect(initial).not.toHaveProperty('defaultServicePlace');
 
-    await expect(db.updateUserSettings(1, {
+    expect(pickSettings({
       submissionEmail: 'kp@example.test',
       contactPerson: 'Петров Петр Петрович',
       contactPersonGenitive: 'Петрова Петра Петровича',
@@ -117,7 +63,7 @@ describe('JSONDatabase', () => {
       executorNameDative: 'Иванову Ивану Ивановичу',
       defaultServiceConditions: ['Срок оказания услуг: 30 дней', '  ', 'Гарантия 12 месяцев'],
       ignored: 'не сохраняется',
-    })).resolves.toEqual({
+    }, initial)).toEqual({
       customer: 'ГКУ «ЦИТ Кузбасса»',
       executorPosition: '',
       executorName: 'Иванов Иван Иванович',
@@ -136,82 +82,44 @@ describe('JSONDatabase', () => {
     });
   });
 
-  it('преобразует старые строковые типовые условия профиля в список пунктов', async () => {
-    const db = await loadDb({
-      users: [
-        {
-          id: 1,
-          username: 'user',
-          password: 'hash',
-          role: 'user',
-          settings: {
-            defaultServicePlace: 'г. Кемерово',
-            defaultServiceConditions: 'Срок оказания услуг: 30 дней\nГарантия 12 месяцев',
-          },
-          mustChangePassword: false,
-        },
-      ],
-      documents: [],
-      counterparties: [],
+  it('нормализует контрагентов из legacy JSON', () => {
+    expect(normalizeCounterpartyRecord({
+      id: 10,
+      companyName: '  ООО Ромашка  ',
+      shortName: ' Ромашка ',
+      fullName: '  Общество с ограниченной ответственностью Ромашка  ',
+      director: '  Иванов Иван Иванович  ',
+      directorGenitive: ' Иванова Ивана Ивановича ',
+      directorDative: ' Иванову Ивану Ивановичу ',
+      email: '  info@example.test  ',
+      phone: ' +7 000 000-00-00 ',
+      legalAddress: '  г. Москва  ',
+      postalAddress: '  101000, г. Москва  ',
+      tags: [' поставщик ', '', 'поставщик', '44-ФЗ', 123, '44-ФЗ'],
+      createdAt: 1000,
+    })).toEqual({
+      id: 10,
+      companyName: 'ООО Ромашка',
+      shortName: 'Ромашка',
+      fullName: 'Общество с ограниченной ответственностью Ромашка',
+      director: 'Иванов Иван Иванович',
+      directorGenitive: 'Иванова Ивана Ивановича',
+      directorDative: 'Иванову Ивану Ивановичу',
+      email: 'info@example.test',
+      phone: '+7 000 000-00-00',
+      legalAddress: 'г. Москва',
+      postalAddress: '101000, г. Москва',
+      tags: ['поставщик', '44-ФЗ'],
+      createdAt: 1000,
+      updatedAt: 1000,
     });
 
-    expect(await db.getUserSettings(1)).toMatchObject({
-      defaultServiceConditions: ['Срок оказания услуг: 30 дней', 'Гарантия 12 месяцев'],
-    });
-    expect(await db.getUserSettings(1)).not.toHaveProperty('defaultServicePlace');
+    expect(normalizeCounterpartyRecord({ id: 11, companyName: '   ' })).toBeNull();
+    expect(normalizeCounterpartyRecord({ companyName: 'Без id' })).toBeNull();
   });
 
-  it('нормализует контрагентов из файла БД', async () => {
-    const db = await loadDb({
-      users: [],
-      documents: [],
-      counterparties: [
-        {
-          id: 10,
-          companyName: '  ООО Ромашка  ',
-          shortName: ' Ромашка ',
-          fullName: '  Общество с ограниченной ответственностью Ромашка  ',
-          director: '  Иванов Иван Иванович  ',
-          directorGenitive: ' Иванова Ивана Ивановича ',
-          directorDative: ' Иванову Ивану Ивановичу ',
-          email: '  info@example.test  ',
-          phone: ' +7 000 000-00-00 ',
-          legalAddress: '  г. Москва  ',
-          postalAddress: '  101000, г. Москва  ',
-          tags: [' поставщик ', '', 'поставщик', '44-ФЗ', 123, '44-ФЗ'],
-          createdAt: 1000,
-        },
-        { id: 11, companyName: '   ', tags: ['пустое название'] },
-        { companyName: 'Без id' },
-      ],
-    });
-
-    expect(await db.listCounterparties()).toEqual([
-      {
-        id: 10,
-        companyName: 'ООО Ромашка',
-        shortName: 'Ромашка',
-        fullName: 'Общество с ограниченной ответственностью Ромашка',
-        director: 'Иванов Иван Иванович',
-        directorGenitive: 'Иванова Ивана Ивановича',
-        directorDative: 'Иванову Ивану Ивановичу',
-        email: 'info@example.test',
-        phone: '+7 000 000-00-00',
-        legalAddress: 'г. Москва',
-        postalAddress: '101000, г. Москва',
-        tags: ['поставщик', '44-ФЗ'],
-        createdAt: 1000,
-        updatedAt: 1000,
-      },
-    ]);
-  });
-
-  it('создаёт контрагента с trim-полями и уникальными тегами', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-01-01T10:00:00.000Z'));
-
-    const db = await loadDb({ users: [], documents: [], counterparties: [] });
-    const created = await db.createCounterparty({
+  it('создаёт ввод контрагента с trim-полями и уникальными тегами', () => {
+    expect(normalizeCounterpartyInput({
       companyName: '  ООО Вектор  ',
       shortName: ' Вектор ',
       fullName: '  Общество с ограниченной ответственностью Вектор  ',
@@ -223,10 +131,7 @@ describe('JSONDatabase', () => {
       legalAddress: '  г. Казань  ',
       postalAddress: '  420000, г. Казань  ',
       tags: [' срочно ', 'важно', 'срочно', '', null],
-    });
-
-    expect(created).toEqual({
-      id: 1,
+    })).toEqual({
       companyName: 'ООО Вектор',
       shortName: 'Вектор',
       fullName: 'Общество с ограниченной ответственностью Вектор',
@@ -238,57 +143,44 @@ describe('JSONDatabase', () => {
       legalAddress: 'г. Казань',
       postalAddress: '420000, г. Казань',
       tags: ['срочно', 'важно'],
-      createdAt: new Date('2026-01-01T10:00:00.000Z').getTime(),
-      updatedAt: new Date('2026-01-01T10:00:00.000Z').getTime(),
     });
-    await expect(db.createCounterparty({ companyName: '   ' })).rejects.toMatchObject({
-      status: 400,
-      message: 'Укажите название контрагента',
-    });
+
+    expect(() => normalizeCounterpartyInput({ companyName: '   ' })).toThrow('Укажите название контрагента');
   });
 
-  it('изменяет контрагента, сохраняя базовые поля при частичном вводе', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-01-01T10:00:00.000Z'));
-
-    const db = await loadDb({ users: [], documents: [], counterparties: [] });
-    const created = await db.createCounterparty({
+  it('сохраняет базовые поля контрагента при частичном вводе', () => {
+    const base = {
+      id: 1,
       companyName: 'ООО Вектор',
+      shortName: '',
+      fullName: '',
       director: 'Петров Пётр Петрович',
+      directorGenitive: '',
+      directorDative: '',
       email: 'vector@example.test',
+      phone: '',
       legalAddress: 'г. Казань',
+      postalAddress: '',
       tags: ['важно'],
-    });
+      createdAt: 1000,
+      updatedAt: 1000,
+    };
 
-    vi.setSystemTime(new Date('2026-01-02T10:00:00.000Z'));
-    const updated = await db.updateCounterparty(created.id, {
+    expect(normalizeCounterpartyInput({
       companyName: '  ООО Вектор Плюс  ',
       tags: [' важно ', 'новый', 'важно'],
-    });
-
-    expect(updated).toEqual({
-      ...created,
+    }, base)).toEqual({
       companyName: 'ООО Вектор Плюс',
+      shortName: '',
+      fullName: '',
+      director: 'Петров Пётр Петрович',
+      directorGenitive: '',
+      directorDative: '',
+      email: 'vector@example.test',
+      phone: '',
+      legalAddress: 'г. Казань',
+      postalAddress: '',
       tags: ['важно', 'новый'],
-      updatedAt: new Date('2026-01-02T10:00:00.000Z').getTime(),
-    });
-    await expect(db.updateCounterparty(999, { companyName: 'Нет' })).rejects.toMatchObject({
-      status: 404,
-      message: 'Контрагент не найден',
-    });
-  });
-
-  it('удаляет контрагента и сообщает об отсутствующей записи', async () => {
-    const db = await loadDb({ users: [], documents: [], counterparties: [] });
-    const first = await db.createCounterparty({ companyName: 'ООО Первый' });
-    const second = await db.createCounterparty({ companyName: 'ООО Второй' });
-
-    await db.deleteCounterparty(first.id);
-
-    expect(await db.listCounterparties()).toEqual([second]);
-    await expect(db.deleteCounterparty(first.id)).rejects.toMatchObject({
-      status: 404,
-      message: 'Контрагент не найден',
     });
   });
 });

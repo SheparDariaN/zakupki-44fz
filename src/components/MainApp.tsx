@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { AppState } from '../types';
+import { useParams } from 'react-router-dom';
+import { AppState, type PurchaseContext } from '../types';
 import { formatMoney, formatMoney4, calculateAverage, calculateStandardDeviation, calculateCV, isCvHeterogeneous } from '../utils/math';
 import { METHOD_TEXT } from '../utils/docxGenerator';
 import { formatAmountInWords } from '../utils/numberToWords';
-import { Trash2, Plus, RefreshCw, Download, User, FileSpreadsheet } from 'lucide-react';
+import { Trash2, Plus, RefreshCw, Download, User, FileSpreadsheet, Save } from 'lucide-react';
 import AppNav from './AppNav';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
@@ -13,7 +14,7 @@ import { formatDateRu } from '../utils/morphology';
 import AutofillPanel from './AutofillPanel';
 import AutofillSuggestField from './AutofillSuggestField';
 import ImportModal from './ImportModal';
-import { saveCurrentPurchase } from '../utils/currentPurchase';
+import { buildPurchaseAutofillContext, calculateMinSupplierTotal, saveCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeNmckState } from '../documents/templateNormalization';
 import { applyColumnPaste, importTable, parseColumnPasteValues, parsePrice, type ColumnPasteField } from '../utils/tableImport';
 
@@ -57,46 +58,75 @@ function isIncompletePriceInput(value: string): boolean {
 }
 
 export default function App() {
+  const { id: purchaseId } = useParams<{ id: string }>();
   const [state, setState] = useState<AppState>(initialState);
   const [userSettings, setUserSettings] = useState<AutofillUserSettings>();
+  const [purchaseContext, setPurchaseContext] = useState<PurchaseContext | null>(null);
   const [autofillSource, setAutofillSource] = useState<'all' | AutofillSourceKind>('all');
   const [autofillOverwrite, setAutofillOverwrite] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState('');
   const [downloadMessageError, setDownloadMessageError] = useState(false);
 
   useEffect(() => {
-    const fetchSettings = async () => {
+    let active = true;
+
+    const fetchPurchaseContext = async () => {
+      if (!purchaseId) return;
       try {
-        const res = await apiFetch('/api/user/settings');
+        const res = await apiFetch(`/api/purchases/${purchaseId}/context`);
+        if (!active) return;
+
         if (res.ok) {
-          const settings = await res.json();
-          setUserSettings(settings);
-          setState(prev => applyNmckAutofill(prev, { userSettings: settings }).state);
+          const context: PurchaseContext = await res.json();
+          const savedState = context.documents.nmck;
+          const nextState = savedState
+            ? normalizeNmckState(savedState as AppState)
+            : applyNmckAutofill(initialState, {
+              userSettings: context.settings,
+              currentPurchase: buildPurchaseAutofillContext(context),
+            }).state;
+          setUserSettings(context.settings);
+          setPurchaseContext(context);
+          setState(nextState);
         }
       } catch (e) {
         console.error(e);
       }
     };
-    fetchSettings();
-  }, []);
+
+    fetchPurchaseContext();
+
+    return () => {
+      active = false;
+    };
+  }, [purchaseId]);
 
   useEffect(() => {
     saveCurrentPurchase(state);
   }, [state]);
 
+  const currentPurchase = useMemo(
+    () => buildPurchaseAutofillContext(purchaseContext, state),
+    [purchaseContext, state]
+  );
+  const autofillContext = useMemo(() => ({
+    userSettings,
+    currentPurchase,
+  }), [currentPurchase, userSettings]);
   const autofillSourceKinds = autofillSource === 'all' ? undefined : [autofillSource];
-  const autofillSuggestions = useMemo(() => resolveAutofill('nmck', state, { userSettings }, {
+  const autofillSuggestions = useMemo(() => resolveAutofill('nmck', state, autofillContext, {
     includeFilled: true,
     sourceKinds: autofillSourceKinds,
-  }), [autofillSourceKinds, state, userSettings]);
-  const fieldAutofillSuggestions = useMemo(() => resolveAutofill('nmck', state, { userSettings }, {
+  }), [autofillContext, autofillSourceKinds, state]);
+  const fieldAutofillSuggestions = useMemo(() => resolveAutofill('nmck', state, autofillContext, {
     includeFilled: true,
-  }), [state, userSettings]);
+  }), [autofillContext, state]);
 
   const applyAutofillSuggestions = (fieldKeys: string[]) => {
-    const result = applyNmckAutofill(state, { userSettings }, {
+    const result = applyNmckAutofill(state, autofillContext, {
       includeFilled: true,
       overwrite: autofillOverwrite,
       sourceKinds: autofillSourceKinds,
@@ -110,7 +140,7 @@ export default function App() {
   };
 
   const pickAutofillSuggestion = (fieldKey: string, suggestion: AutofillSuggestion) => {
-    const result = applyNmckAutofill(state, { userSettings }, {
+    const result = applyNmckAutofill(state, autofillContext, {
       includeFilled: true,
       overwrite: true,
       sourceKinds: [suggestion.sourceKind],
@@ -247,6 +277,61 @@ export default function App() {
     setState(prev => applyColumnPaste(prev, startIndex, field, values, supplierId));
   };
 
+  const saveDocumentState = async (
+    successMessage = 'Состояние НМЦК сохранено.',
+    failurePrefix = 'Не удалось сохранить состояние НМЦК'
+  ) => {
+    setDownloadMessage('');
+    const documentState = normalizeNmckState(state);
+    if (!purchaseId) return false;
+
+    setIsSaving(true);
+    try {
+      const res = await apiFetch(`/api/purchases/${purchaseId}/documents/nmck`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: documentState })
+      });
+      if (!res.ok) {
+        setDownloadMessage(`${failurePrefix}: ${await readApiError(res)}`);
+        setDownloadMessageError(true);
+        return false;
+      }
+
+      setPurchaseContext(prev => prev ? { ...prev, documents: { ...prev.documents, nmck: documentState } } : prev);
+
+      if (purchaseContext?.purchase.price === null) {
+        const minSupplierTotal = calculateMinSupplierTotal(documentState);
+        if (minSupplierTotal > 0) {
+          const purchaseRes = await apiFetch(`/api/purchases/${purchaseContext.purchase.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: purchaseContext.purchase.name,
+              price: minSupplierTotal,
+              budgetYear: purchaseContext.purchase.budgetYear,
+            }),
+          });
+          if (purchaseRes.ok) {
+            const data: { purchase: PurchaseContext['purchase'] } = await purchaseRes.json();
+            setPurchaseContext(prev => prev ? { ...prev, purchase: data.purchase } : prev);
+          }
+        }
+      }
+
+      setDownloadMessage(successMessage);
+      setDownloadMessageError(false);
+      return true;
+    } catch (e) {
+      console.error("Failed to save purchase document", e);
+      setDownloadMessage(`${failurePrefix}: ошибка сети.`);
+      setDownloadMessageError(true);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDocxDownload = async () => {
     setDownloadMessage('');
     const documentState = normalizeNmckState(state);
@@ -259,25 +344,10 @@ export default function App() {
       return;
     }
 
-    try {
-      const res = await apiFetch('/api/user/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: DOCUMENT_REGISTRY.nmck.getHistoryName(documentState),
-          state: documentState,
-          type: DOCUMENT_REGISTRY.nmck.kind
-        })
-      });
-      if (!res.ok) {
-        setDownloadMessage(`DOCX скачан, но история не сохранена: ${await readApiError(res)}`);
-        setDownloadMessageError(true);
-      }
-    } catch (e) {
-      console.error("Failed to save document history", e);
-      setDownloadMessage('DOCX скачан, но история не сохранена: ошибка сети.');
-      setDownloadMessageError(true);
-    }
+    await saveDocumentState(
+      'DOCX скачан, состояние закупки сохранено.',
+      'DOCX скачан, но состояние закупки не сохранено'
+    );
   };
 
   const inputClass = "w-full h-full bg-transparent border border-transparent hover:bg-black/5 focus:bg-white focus:border-black outline-none px-2 py-1.5 text-[11px] transition-all duration-200 cursor-text rounded-sm";
@@ -293,11 +363,19 @@ export default function App() {
         </div>
         <div className="flex gap-3 items-center shrink-0 flex-wrap justify-end">
           <AppNav />
-          <a href="/profile" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
+          <a href="/cabinet" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
             <User className="w-4 h-4" /> Личный кабинет
           </a>
           <button onClick={resetState} className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-yellow-100 text-sm font-bold">
             <RefreshCw className="w-3.5 h-3.5" /> Сбросить
+          </button>
+          <button
+            type="button"
+            onClick={() => void saveDocumentState()}
+            disabled={isSaving}
+            className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-green-50 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Save className="w-3.5 h-3.5" /> {isSaving ? 'Сохранение...' : 'Сохранить'}
           </button>
           <button onClick={handleDocxDownload} className="border border-[#141414] bg-[#141414] text-white px-4 py-2 text-sm font-bold uppercase flex items-center gap-2 hover:bg-white hover:text-[#141414] transition-colors cursor-pointer">
             <Download className="w-4 h-4" /> Сгенерировать DOCX
@@ -328,6 +406,7 @@ export default function App() {
             description="Проверьте предложения перед подстановкой в реквизиты НМЦК."
             sourceOptions={[
               { value: 'all', label: 'Все доступные источники' },
+              { value: 'currentPurchase', label: 'Карточка закупки' },
               { value: 'userSettings', label: 'Профиль пользователя' },
               { value: 'currentDate', label: 'Текущая дата' },
             ]}

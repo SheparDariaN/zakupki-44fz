@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, Plus, Trash2 } from 'lucide-react';
-import AppNav from './AppNav';
+import { Plus, Trash2 } from 'lucide-react';
 import InflectedNameField from './InflectedNameField';
-import { apiFetch, clearSession, getStoredUser, readApiError } from '../utils/api';
-import type { StoredDocument, UserSettings } from '../server/types';
-import { generateRegisteredDocument, getDocumentTitle } from '../documents/registry';
+import { apiFetch, getStoredUser, readApiError } from '../utils/api';
+import type { UserSettings } from '../server/types';
 import { hydrateInflection } from '../utils/morphology';
 
 const emptySettings: UserSettings = {
@@ -59,7 +57,6 @@ function hydrateSettingsInflections(settings: UserSettings): UserSettings {
 
 export default function Profile() {
   const [settings, setSettings] = useState<UserSettings>(emptySettings);
-  const [documents, setDocuments] = useState<StoredDocument[]>([]);
   const [newPassword, setNewPassword] = useState('');
   const [message, setMessage] = useState('');
   const [messageError, setMessageError] = useState(false);
@@ -69,7 +66,6 @@ export default function Profile() {
 
   useEffect(() => {
     fetchSettings();
-    fetchDocuments();
   }, []);
 
   const showMessage = (text: string, isError = false) => {
@@ -95,18 +91,6 @@ export default function Profile() {
             ? data.defaultServiceConditions
             : [],
         }));
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchDocuments = async () => {
-    try {
-      const res = await apiFetch('/api/user/documents');
-      if (res.ok) {
-        const data: StoredDocument[] = await res.json();
-        setDocuments(data);
       }
     } catch (err) {
       console.error(err);
@@ -160,34 +144,21 @@ export default function Profile() {
     }
   };
 
-  const handleRegenerate = async (doc: StoredDocument) => {
-    try {
-      await generateRegisteredDocument(doc.type, doc.state);
-    } catch (err) {
-      console.error(err);
-      showMessage('Не удалось сформировать документ.', true);
-    }
-  };
-
-  const logout = () => {
-    clearSession();
-    navigate('/login');
-  };
-
   return (
-    <div className="h-screen overflow-y-auto scroll-area bg-[#E4E3E0] p-8 font-sans text-[#141414]">
+    <div className="pb-8 font-sans text-[#141414]">
       <div className="max-w-5xl mx-auto">
         <header className="flex justify-between items-center mb-8 border-b border-[#141414] pb-4 gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold uppercase tracking-tighter">Личный кабинет</h1>
             <p className="text-[10px] opacity-60">Пользователь: {user?.username}</p>
           </div>
-          <div className="flex gap-4 items-center shrink-0 flex-wrap justify-end">
-            <AppNav />
+          <div className="flex gap-3 items-center shrink-0 flex-wrap justify-end">
+            <button onClick={() => navigate('/cabinet/counterparties')} className="btn-brutal bg-white text-sm font-bold">
+              Контрагенты
+            </button>
             {user?.role === 'admin' && (
               <button onClick={() => navigate('/admin')} className="text-sm font-bold hover:underline">Админ-панель</button>
             )}
-            <button onClick={logout} className="text-sm font-bold text-red-600 hover:underline">Выйти</button>
           </div>
         </header>
 
@@ -370,38 +341,29 @@ export default function Profile() {
             </section>
           </aside>
 
-          <main className="md:col-span-8">
+          <main className="md:col-span-8 flex flex-col gap-8">
             <section className="bg-white p-6 border border-[#141414]">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-sm uppercase font-bold">История документов</h2>
-                <span className="text-[10px] opacity-70">Хранятся 3 дня</span>
+              <h2 className="text-sm uppercase font-bold mb-4">Разделы кабинета</h2>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/cabinet/counterparties')}
+                  className="border border-[#141414] p-4 text-left hover:bg-black/5 transition-colors"
+                >
+                  <span className="block text-sm font-bold uppercase">Контрагенты</span>
+                  <span className="text-[11px] opacity-60">Справочник организаций для запросов КП.</span>
+                </button>
+                {user?.role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin')}
+                    className="border border-[#141414] p-4 text-left hover:bg-black/5 transition-colors"
+                  >
+                    <span className="block text-sm font-bold uppercase">Админ-панель</span>
+                    <span className="text-[11px] opacity-60">Пользователи и роли.</span>
+                  </button>
+                )}
               </div>
-
-              {documents.length === 0 ? (
-                <div className="text-sm opacity-50 py-8 text-center border border-dashed border-[#141414]">
-                  Нет сохраненных документов
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {documents.map(doc => (
-                    <div key={doc.id} className="flex justify-between items-center p-3 border border-black/10 hover:border-black transition-colors group">
-                      <div>
-                        <h3 className="text-sm font-bold">{doc.name || getDocumentTitle(doc.type)}</h3>
-                        <p className="text-[10px] opacity-60">
-                          {getDocumentTitle(doc.type)} · {new Date(doc.createdAt).toLocaleString('ru-RU')}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleRegenerate(doc)}
-                        className="p-2 text-black/50 hover:text-black hover:bg-black/5 rounded transition-colors"
-                        title="Скачать заново"
-                      >
-                        <Download className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </section>
           </main>
 

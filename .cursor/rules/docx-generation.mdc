@@ -8,18 +8,21 @@ alwaysApply: false
 
 # Генерация DOCX
 
-Документы собираются в браузере библиотекой `docx`, скачиваются через `file-saver`. Сервер не рендерит Word — только сохраняет JSON `state` в историю.
+Документы собираются в браузере библиотекой `docx`, скачиваются через `file-saver`. Сервер не рендерит Word и не хранит сгенерированные DOCX для `nmck`/`kp`/`memo` — только сохраняет JSON `state` в документ закупки.
 
 ```ts
-// ❌ BAD — серверный Packer или смена шрифта шаблона
-await fetch('/api/render-docx', { method: 'POST', body: state });
+// ❌ BAD — серверный Packer или отдельный render endpoint
+await fetch('/api/render-docx', { method: 'POST', body: JSON.stringify(state) });
 
-// ✅ GOOD — клиентский генератор, затем опционально POST /api/user/documents
+// ✅ GOOD — клиентский генератор, затем сохранение state в закупке
 await generateDocx(state);
+await fetch(`/api/purchases/${purchaseId}/documents/nmck`, { method: 'PUT', body });
 ```
 
 - НМЦК: `generateDocx(AppState)` — альбомная A4, поля ~1 см, Times New Roman. Юридический абзац `METHOD_TEXT` не переписывать.
 - Запрос КП: `generateKpDocx(KpDocxData)` — по файлу на каждого вендора, несколько файлов паковать `JSZip`. Превью обязано совпадать с DOCX: правь оба (`kpDocxGenerator.ts` и `KpDocumentPreview.tsx`).
+- Служебная записка: `serviceMemoDocxGenerator` и превью должны работать с одним `ServiceMemoData`.
 - Размеры шрифта в `docx` — half-points (`size: 20` = 10pt). Не ставь CSS-пиксели.
-- После успешной генерации пиши историю: `type: 'nmck' | 'kp'`, `name`, полный `state`.
+- После успешной генерации или явного сохранения пиши состояние в `PUT /api/purchases/:id/documents/:kind` с `kind: 'nmck' | 'kp' | 'memo'` и полным `state`.
+- Контракт не генерируется клиентом: он загружается отдельно как `.pdf`/`.docx` через `/api/purchases/:id/contract`.
 - Не подключай `html-docx`, `pdfkit` и серверные шаблоны без задачи.

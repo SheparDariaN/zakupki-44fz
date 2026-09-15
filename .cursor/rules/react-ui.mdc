@@ -6,7 +6,7 @@ alwaysApply: false
 
 # React UI
 
-Функциональные компоненты, default export, имя файла = экран (`Login.tsx`, `Profile.tsx`). Состояние экрана — `useState` + `AppState` / `KpDocxData`. Глобальный стор не вводи.
+Функциональные компоненты, default export, имя файла = экран (`Login.tsx`, `Profile.tsx`). Состояние экрана — `useState` + типы из `src/types.ts`. Глобальный стор не вводи.
 
 ```tsx
 // ❌ BAD — токен в каждом экране копипастой без обработки 401
@@ -20,8 +20,12 @@ const res = await fetch('/api/user/settings', {
 if (res.status === 401) { localStorage.removeItem('token'); navigate('/login'); }
 ```
 
-- Маршруты только в `src/App.tsx` внутри `ProtectedRoute` (кроме `/login`). Навигация между НМЦК и КП — `AppNav`.
+- Маршруты только в `src/App.tsx` внутри `ProtectedRoute` (кроме `/login`). `/` ведёт на `/purchases`.
+- Основная навигация — `AppShell`: «Закупки», «Отчётность», «Личный кабинет». Не возвращай голые `/kp` или `/memo`.
+- Документы открываются внутри закупки: `/purchases/:id/nmck`, `/purchases/:id/kp`, `/purchases/:id/memo`.
+- Кабинет содержит настройки и смену пароля. Справочник контрагентов — `/cabinet/counterparties`, админка — `/admin`.
 - JWT: `localStorage.token`, пользователь — `localStorage.user` (JSON). Не дублируй cookie-сессии.
 - Списки поставщиков/позиций обновляй иммутабельно (`map`/`filter`). Id новых строк — `Date.now().toString()`.
+- При открытии документа закупки загружай `/api/purchases/:id/context` для автозаполнения и соседних состояний документов.
 - Иконки — `lucide-react`. Не подключай `motion` и `@google/genai` без явной задачи.
-- Тексты UI на русском. Кнопки документов: «Сгенерировать DOCX», история — в `Profile`.
+- Тексты UI на русском. Кнопка генерации остаётся «Сгенерировать DOCX»; сохранение состояния идёт в документ закупки.

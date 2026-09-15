@@ -16,7 +16,7 @@ const user: any = JSON.parse(localStorage.getItem('user') || '{}');
 interface AuthUser { id: number; username: string; role: 'admin' | 'user' }
 ```
 
-- Новые сущности описывай в `src/types.ts` (`AppState`, `KpDocxData`, …), не дублируй inline-объекты в генераторах и UI.
+- Новые сущности описывай в `src/types.ts` (`AppState`, `KpDocxData`, `ServiceMemoData`, закупки, ссылки, метаданные документов), не дублируй inline-объекты в генераторах и UI.
 - Предпочитай `import type` для типов. Относительные импорты (`../types`), не `@/` — алиас указывает на корень репо.
 - Не добавляй `any` в новый код. На Express-middleware типизируй `req` через расширение или узкий интерфейс, а не `req: any`.
 - Синхронный bcrypt (`hashSync`/`compareSync`) уже принят в проекте — не смешивай с async API без нужды.

@@ -25,13 +25,14 @@ RUN apk add --no-cache su-exec
 COPY package.json package-lock.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY migrations ./migrations
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
-RUN mkdir -p /app/data && chown -R node:node /app
+RUN mkdir -p /app/data/files && chown -R node:node /app
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["/bin/sh", "/app/docker-entrypoint.sh"]

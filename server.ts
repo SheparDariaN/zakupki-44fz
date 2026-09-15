@@ -3,9 +3,17 @@ import express, { type NextFunction, type Request, type Response } from "express
 import path from "path";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import multer from "multer";
 import { getDb, MAX_STATE_BYTES, MIN_PASSWORD_LENGTH } from "./src/server/db";
 import { HttpError } from "./src/server/errors";
 import { isAuthUser, type AuthUser, type UserRole } from "./src/server/types";
+import {
+  deletePurchaseFiles,
+  deleteStoredFile,
+  MAX_CONTRACT_FILE_BYTES,
+  readStoredFile,
+  saveContractFile,
+} from "./src/server/storage/files";
 
 const DEV_JWT_FALLBACK = "your_super_secret_jwt_key_here_change_it_in_prod";
 const MAX_USERNAME_LENGTH = 64;
@@ -14,6 +22,10 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
 const PROD_CSP =
   "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'";
+const contractUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_CONTRACT_FILE_BYTES, files: 1 },
+});
 
 type RateBucket = { count: number; resetAt: number };
 const loginAttempts = new Map<string, RateBucket>();
@@ -121,6 +133,24 @@ function jsonBodyErrorHandler(err: unknown, _req: Request, res: Response, next: 
   next(err);
 }
 
+function uploadContractFile(req: Request, res: Response, next: NextFunction) {
+  contractUpload.single("file")(req, res, (err: unknown) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ error: "Файл контракта слишком большой" });
+      }
+      return res.status(400).json({ error: "Некорректная загрузка файла" });
+    }
+    if (err) return next(err);
+    next();
+  });
+}
+
+function contentDispositionForAttachment(fileName: string): string {
+  const asciiName = fileName.replace(/[^\x20-\x7E]+/g, "_").replace(/["\\]/g, "_") || "contract";
+  return `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -131,8 +161,14 @@ async function startServer() {
 
   const db = await getDb();
 
-  app.get("/api/health", (_req, res) => {
-    res.status(200).json({ status: "ok" });
+  app.get("/api/health", async (_req, res) => {
+    try {
+      const health = await db.health();
+      const ok = health.postgres && health.mongo;
+      res.status(ok ? 200 : 503).json({ status: ok ? "ok" : "error", ...health });
+    } catch (err) {
+      handleApiError(res, err);
+    }
   });
 
   const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
@@ -265,19 +301,247 @@ async function startServer() {
     }
   });
 
-  app.get("/api/user/documents", authenticateToken, async (req: AuthedRequest, res: Response) => {
+  app.get("/api/purchases", authenticateToken, async (req: AuthedRequest, res: Response) => {
     try {
-      const docs = await db.getDocuments(req.user.id);
-      res.json(docs);
+      const purchases = await db.listPurchasesByUser(req.user.id);
+      res.json(purchases);
     } catch (err) {
       handleApiError(res, err);
     }
   });
 
-  app.post("/api/user/documents", authenticateToken, async (req: AuthedRequest, res: Response) => {
+  app.post("/api/purchases", authenticateToken, async (req: AuthedRequest, res: Response) => {
     try {
-      const { name, state, type } = req.body as { name?: unknown; state?: unknown; type?: unknown };
-      await db.addDocument(req.user.id, name, state, type);
+      const purchase = await db.createPurchase(req.user.id, req.body);
+      res.json({ success: true, purchase });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.get("/api/purchases/:id", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      const purchase = await db.getPurchaseById(req.user.id, id);
+      if (!purchase) return res.status(404).json({ error: "Закупка не найдена" });
+      res.json(purchase);
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.put("/api/purchases/:id", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      const purchase = await db.updatePurchase(req.user.id, id, req.body);
+      res.json({ success: true, purchase });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.delete("/api/purchases/:id", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      await db.deletePurchase(req.user.id, id);
+      await deletePurchaseFiles(id);
+      res.json({ success: true });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.get("/api/purchases/:id/context", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      const context = await db.getPurchaseContext(req.user.id, id);
+      res.json(context);
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.get("/api/purchases/:id/links", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      const links = await db.listPurchaseLinks(req.user.id, id);
+      res.json(links);
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.post("/api/purchases/:id/links", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      const link = await db.createPurchaseLink(req.user.id, id, req.body);
+      res.json({ success: true, link });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.put("/api/purchases/:id/links/:linkId", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    const linkId = parseId(req.params.linkId);
+    if (id === null || linkId === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор ссылки закупки" });
+    }
+
+    try {
+      const link = await db.updatePurchaseLink(req.user.id, id, linkId, req.body);
+      res.json({ success: true, link });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.delete("/api/purchases/:id/links/:linkId", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    const linkId = parseId(req.params.linkId);
+    if (id === null || linkId === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор ссылки закупки" });
+    }
+
+    try {
+      await db.deletePurchaseLink(req.user.id, id, linkId);
+      res.json({ success: true });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.put("/api/purchases/:id/documents/:kind", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      const { state } = req.body as { state?: unknown };
+      const document = await db.upsertPurchaseDocumentState(req.user.id, id, req.params.kind, state);
+      res.json({ success: true, document });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.get("/api/purchases/:id/documents/:kind", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      const document = await db.getPurchaseDocumentState(req.user.id, id, req.params.kind);
+      if (!document) return res.status(404).json({ error: "Документ закупки не найден" });
+      res.json(document);
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.delete("/api/purchases/:id/documents/:kind", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      await db.deletePurchaseDocumentState(req.user.id, id, req.params.kind);
+      res.json({ success: true });
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.put(
+    "/api/purchases/:id/contract",
+    authenticateToken,
+    uploadContractFile,
+    async (req: AuthedRequest, res: Response) => {
+      const id = parseId(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: "Приложите файл контракта" });
+      }
+
+      try {
+        const previous = await db.getPurchaseDocumentMetadata(req.user.id, id, "contract");
+        const storedFile = await saveContractFile(id, req.file);
+        try {
+          const document = await db.upsertContractMetadata(req.user.id, id, storedFile);
+          if (previous?.fileRelPath && previous.fileRelPath !== storedFile.fileRelPath) {
+            await deleteStoredFile(previous.fileRelPath);
+          }
+          res.json({ success: true, document });
+        } catch (err) {
+          if (previous?.fileRelPath !== storedFile.fileRelPath) {
+            await deleteStoredFile(storedFile.fileRelPath);
+          }
+          throw err;
+        }
+      } catch (err) {
+        handleApiError(res, err);
+      }
+    }
+  );
+
+  app.get("/api/purchases/:id/contract", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      const document = await db.getPurchaseDocumentMetadata(req.user.id, id, "contract");
+      if (!document?.fileRelPath || !document.mime || !document.fileName) {
+        return res.status(404).json({ error: "Контракт не найден" });
+      }
+      const file = await readStoredFile(document.fileRelPath);
+      res.setHeader("Content-Type", document.mime);
+      res.setHeader("Content-Disposition", contentDispositionForAttachment(document.fileName));
+      res.send(file);
+    } catch (err) {
+      handleApiError(res, err);
+    }
+  });
+
+  app.delete("/api/purchases/:id/contract", authenticateToken, async (req: AuthedRequest, res: Response) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: "Некорректный идентификатор закупки" });
+    }
+
+    try {
+      const previous = await db.deleteContractMetadata(req.user.id, id);
+      await deleteStoredFile(previous?.fileRelPath);
       res.json({ success: true });
     } catch (err) {
       handleApiError(res, err);

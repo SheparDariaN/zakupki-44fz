@@ -1,6 +1,6 @@
 # HTTP API
 
-Базовый URL: тот же origin, что и SPA (`/api/...`). JSON, UTF-8.
+Базовый URL: тот же origin, что и SPA (`/api/...`). JSON, UTF-8. Контракт загружается через `multipart/form-data`; скачивание идёт через защищённый API.
 
 Заголовок для защищённых маршрутов:
 
@@ -12,19 +12,20 @@ Authorization: Bearer <jwt>
 
 | Код | Когда |
 |-----|--------|
-| 400 | Нет полей логина, некорректный JSON, короткий пароль, дубликат username, неверный `type`, слишком большой `state`, лимит документов, пустое название контрагента, некорректный `id` контрагента |
+| 400 | Нет обязательных полей, некорректный JSON, короткий пароль, дубликат username, неверный `kind`, слишком большой `state`, пустое название контрагента или закупки, некорректный id |
 | 401 | Нет токена или токен невалиден / истёк |
-| 403 | Валидный пользователь без нужной роли |
-| 404 | Контрагент не найден |
-| 413 | Тело запроса больше лимита JSON (снимок `state` 256 КБ + запас) |
+| 403 | Валидный пользователь без нужной роли или попытка доступа к чужой закупке |
+| 404 | Пользователь, контрагент, закупка, документ, ссылка или контракт не найдены |
+| 413 | Тело запроса больше лимита JSON или контракт больше лимита файла |
+| 415 | Неподдерживаемый тип контракта |
 | 429 | Слишком много попыток входа с одного IP |
-| 500 | Исключение / сбой записи файла БД |
+| 500 | Исключение / сбой БД или файлового storage |
 
 ## Служебные
 
 ### `GET /api/health` (публичный)
 
-Ответ 200: `{ "status": "ok" }`. Без секретов и без обращения к БД сверх уже поднятого процесса. Нужен Docker HEALTHCHECK.
+Ответ 200 при живых подключениях: `{ "status": "ok", "postgres": "ok", "mongo": "ok" }`. Если один из backend недоступен, `status` не должен быть `ok`.
 
 ## Auth
 
@@ -48,31 +49,101 @@ Authorization: Bearer <jwt>
 
 ### `POST /api/users`
 
-Тело: `{ "username", "password", "role?" }`. `role` по умолчанию `user` (только `admin` \| `user`). Пароль ≥ 5 символов. Дубликат username — 400.
+Тело: `{ "username", "password", "role?" }`. `role` по умолчанию `user` (только `admin` | `user`). Пароль ≥ 5 символов. Дубликат username — 400.
 
 ## Настройки профиля (JWT, свой user)
 
 ### `GET /api/user/settings`
 
-`{ customer, executorPosition, executorName, executorNameGenitive, executorNameDative, submissionEmail, contactPerson, contactPersonGenitive, contactPersonDative, contactPhone, contractServiceHeadPosition, contractServiceHeadName, contractServiceHeadNameGenitive, contractServiceHeadNameDative, defaultServiceConditions }` или пустые значения. `defaultServiceConditions` — массив строк (пункты типовых условий). Старое строковое значение с переносами строк нормализуется в список.
+`{ customer, executorPosition, executorName, executorNameGenitive, executorNameDative, submissionEmail, contactPerson, contactPersonGenitive, contactPersonDative, contactPhone, contractServiceHeadPosition, contractServiceHeadName, contractServiceHeadNameGenitive, contractServiceHeadNameDative, defaultServiceConditions }` или пустые значения. `defaultServiceConditions` — массив строк (пункты типовых условий). Старое строковое значение с переносами строк нормализуется в список при импорте.
 
 ### `POST /api/user/settings`
 
-В `user.settings` попадают только поля `customer`, `executorPosition`, `executorName`, `executorNameGenitive`, `executorNameDative`, `submissionEmail`, `contactPerson`, `contactPersonGenitive`, `contactPersonDative`, `contactPhone`, `contractServiceHeadPosition`, `contractServiceHeadName`, `contractServiceHeadNameGenitive`, `contractServiceHeadNameDative`, `defaultServiceConditions`. Остальное из body игнорируется, в том числе устаревшее `defaultServicePlace`. Эти поля подставляются в НМЦК, запрос КП и служебную записку через схемы автозаполнения. Если для ФИО сохранены родительный или дательный падежи, документы используют их вместо автоматического склонения.
+В `users.settings` попадают только поля `customer`, `executorPosition`, `executorName`, `executorNameGenitive`, `executorNameDative`, `submissionEmail`, `contactPerson`, `contactPersonGenitive`, `contactPersonDative`, `contactPhone`, `contractServiceHeadPosition`, `contractServiceHeadName`, `contractServiceHeadNameGenitive`, `contractServiceHeadNameDative`, `defaultServiceConditions`. Остальное из body игнорируется, в том числе устаревшее `defaultServicePlace`.
 
-## История документов (JWT, свой user)
+## Закупки (JWT, только свои)
 
-### `GET /api/user/documents`
+Все маршруты `/api/purchases/*` проверяют, что закупка принадлежит `req.user.id`. `kind` JSON-документа: `nmck` | `kp` | `memo`. Служебный `contract` используется отдельными маршрутами контракта.
 
-Документы текущего пользователя, новые сверху. Побочный эффект: удаление всех записей старше 3 суток. Файл БД переписывается, только если что-то истекло.
+### `GET /api/purchases`
 
-Элемент: `{ id, userId, name, state, type, createdAt }` где `type` — `'nmck'` | `'kp'` | `'memo'`, `state` — полный снимок формы.
+Список закупок текущего пользователя, новые сверху. Элемент включает карточку и агрегаты: `{ id, name, price, budgetYear, createdAt, updatedAt, documentCounts, linksCount }`.
 
-### `POST /api/user/documents`
+`documentCounts` содержит счётчики по видам документов, включая наличие контракта на уровне метаданных.
 
-Тело: `{ "name": string, "state": object, "type": "nmck" | "kp" | "memo" }`. `type` по умолчанию `nmck`.
+### `POST /api/purchases`
 
-Ограничения: `name` обязателен (до 500 символов); `type` только `nmck` \| `kp` \| `memo`; `state` — объект не больше 256 КБ JSON; не больше 50 документов на пользователя (после очистки старше 3 суток).
+Тело: `{ "name": string, "price"?: number | string | null, "budgetYear"?: number | null }`
+
+Создаёт карточку закупки текущего пользователя. Ответ: `{ "success": true, "purchase": { ... } }`.
+
+### `GET /api/purchases/:id`
+
+Возвращает карточку закупки, метаданные документов и ссылки без тяжёлых JSON-состояний.
+
+### `PUT /api/purchases/:id`
+
+Тело: `{ "name": string, "price"?: number | string | null, "budgetYear"?: number | null }`
+
+Обновляет карточку. `price` хранится как денежное значение с точностью 2 знака.
+
+### `DELETE /api/purchases/:id`
+
+Удаляет закупку каскадом: карточку, ссылки, метаданные PostgreSQL, JSON-состояния MongoDB и каталог файлов контракта.
+
+## Документы закупки (JWT, только свои)
+
+### `GET /api/purchases/:id/documents/:kind`
+
+Возвращает сохранённое состояние документа: `{ kind, state, updatedAt }`. Если состояние ещё не создано — 404.
+
+### `PUT /api/purchases/:id/documents/:kind`
+
+Тело: `{ "state": object }`. Размер сериализованного `state` — не больше 256 КБ JSON.
+
+Перезаписывает состояние в MongoDB по паре `(purchaseId, kind)` и обновляет метаданные в `purchase_documents`. Ответ: `{ "success": true, "document": { "kind", "updatedAt" } }`.
+
+### `DELETE /api/purchases/:id/documents/:kind`
+
+Удаляет JSON-состояние и метаданные документа данного вида. Не влияет на другие документы закупки.
+
+### `GET /api/purchases/:id/context`
+
+Возвращает данные для автозаполнения: карточку закупки, настройки пользователя, ссылки, метаданные и состояния всех JSON-документов закупки. Используется при открытии НМЦК, КП и служебной записки.
+
+## Контракт закупки (JWT, только свои)
+
+### `PUT /api/purchases/:id/contract`
+
+`multipart/form-data` с одним файлом контракта. Допустимы `.pdf` и `.docx`, лимит около 10 МБ. Сервер проверяет расширение и magic bytes (`%PDF` или ZIP-контейнер DOCX), не парсит содержимое.
+
+Повторная загрузка удаляет предыдущий файл и перезаписывает метаданные `kind = contract`.
+
+### `GET /api/purchases/:id/contract`
+
+Скачивает текущий контракт через API с `Content-Type` и именем файла из метаданных. Каталог файлов не раздаётся через `express.static`.
+
+### `DELETE /api/purchases/:id/contract`
+
+Удаляет файл контракта и метаданные `contract`.
+
+## Ссылки закупки (JWT, только свои)
+
+### `GET /api/purchases/:id/links`
+
+Возвращает список URL площадок закупки.
+
+### `POST /api/purchases/:id/links`
+
+Тело: `{ "url": string, "title"?: string }`. Создаёт ссылку закупки.
+
+### `PUT /api/purchases/:id/links/:linkId`
+
+Тело: `{ "url": string, "title"?: string }`. Обновляет ссылку, принадлежащую этой закупке.
+
+### `DELETE /api/purchases/:id/links/:linkId`
+
+Удаляет ссылку, принадлежащую этой закупке.
 
 ## Справочник контрагентов (JWT, общий)
 
@@ -125,6 +196,6 @@ Authorization: Bearer <jwt>
 
 ## Что не является API
 
-Скачивание `.docx` идёт с клиента (`generateDocx` / `generateKpDocx`). Статика SPA в production — любой `GET`, не начинающийся с обработанного `/api`.
+Генерация `.docx` и `.zip` идёт с клиента (`generateDocx` / `generateKpDocx` / batch-сценарии). Статика SPA в production — любой `GET`, не начинающийся с обработанного `/api`.
 
 Новые интеграционные маршруты (внешние HTTP, импорт вложений, обработка HTML извне) не добавляются «по пути»: для них нужна отдельная задача и проверка по чеклисту из `.cursor/rules/security.mdc`.

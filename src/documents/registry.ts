@@ -24,7 +24,7 @@ export const DOCUMENT_REGISTRY = {
   nmck: {
     kind: 'nmck',
     title: 'Обоснование НМЦК',
-    route: '/',
+    route: '/purchases/:id/nmck',
     batchScenarios: NMCK_BATCH_SCENARIOS,
     supportsBatch: false,
     defaultHistoryName: 'Обоснование НМЦК',
@@ -35,7 +35,7 @@ export const DOCUMENT_REGISTRY = {
   kp: {
     kind: 'kp',
     title: 'Запрос КП',
-    route: '/kp',
+    route: '/purchases/:id/kp',
     batchScenarios: [KP_VENDOR_BATCH_SCENARIO],
     supportsBatch: true,
     defaultHistoryName: 'Запрос КП',
@@ -50,7 +50,7 @@ export const DOCUMENT_REGISTRY = {
   memo: {
     kind: 'memo',
     title: 'Служебная записка',
-    route: '/memo',
+    route: '/purchases/:id/memo',
     batchScenarios: MEMO_BATCH_SCENARIOS,
     supportsBatch: false,
     defaultHistoryName: 'Служебная записка',

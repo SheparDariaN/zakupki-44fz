@@ -1,8 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { User } from 'lucide-react';
-import AppNav from './AppNav';
-import { apiFetch, clearSession, getStoredUser, readApiError } from '../utils/api';
+import { apiFetch, getStoredUser, readApiError } from '../utils/api';
 import type { PublicUser } from '../server/types';
 
 export default function AdminPanel() {
@@ -12,7 +9,6 @@ export default function AdminPanel() {
   const [message, setMessage] = useState('');
   const [messageError, setMessageError] = useState(false);
 
-  const navigate = useNavigate();
   const user = getStoredUser();
 
   useEffect(() => {
@@ -58,25 +54,13 @@ export default function AdminPanel() {
     }
   };
 
-  const logout = () => {
-    clearSession();
-    navigate('/login');
-  };
-
   return (
-    <div className="min-h-screen bg-[#E4E3E0] p-8 font-sans">
+    <div className="pb-8 font-sans">
       <div className="max-w-4xl mx-auto">
         <header className="flex justify-between items-center mb-8 border-b border-[#141414] pb-4 gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold uppercase tracking-tighter">Панель управления</h1>
             <p className="text-[10px] opacity-60">Текущий пользователь: {user?.username} ({user?.role})</p>
-          </div>
-          <div className="flex gap-4 items-center shrink-0 flex-wrap justify-end">
-            <AppNav />
-            <a href="/profile" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
-              <User className="w-4 h-4" /> Личный кабинет
-            </a>
-            <button onClick={logout} className="text-sm font-bold text-red-600 hover:underline">Выйти</button>
           </div>
         </header>
 

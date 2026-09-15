@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Counterparty, KpDocxData } from '../types';
+import { useParams } from 'react-router-dom';
+import { Counterparty, KpDocxData, type PurchaseContext } from '../types';
 import KpDocumentPreview from './KpDocumentPreview';
 import AppNav from './AppNav';
-import { Trash2, Plus, RefreshCw, Download, User, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Plus, RefreshCw, Download, User, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { apiFetch, readApiError } from '../utils/api';
 import { DOCUMENT_REGISTRY } from '../documents/registry';
 import { applyKpAutofill, formatCounterpartyVendorInfo, resolveAutofill, suggestionsForField, type AutofillSuggestion, type AutofillUserSettings } from '../documents/autofill';
 import type { AutofillSourceKind } from '../documents/templateTypes';
 import AutofillPanel from './AutofillPanel';
 import AutofillSuggestField from './AutofillSuggestField';
-import { describeCurrentPurchase, loadCurrentPurchase } from '../utils/currentPurchase';
+import { buildPurchaseAutofillContext, describeCurrentPurchase } from '../utils/currentPurchase';
 import { normalizeKpState } from '../documents/templateNormalization';
 
 const defaultValues: KpDocxData = {
@@ -36,12 +37,14 @@ info@softmall.ru`
 };
 
 export default function KpRequest() {
+  const { id: purchaseId } = useParams<{ id: string }>();
   const [data, setData] = useState<KpDocxData>(defaultValues);
   const [userSettings, setUserSettings] = useState<AutofillUserSettings>();
-  const [currentPurchase] = useState(() => loadCurrentPurchase());
+  const [purchaseContext, setPurchaseContext] = useState<PurchaseContext | null>(null);
   const [autofillSource, setAutofillSource] = useState<'all' | AutofillSourceKind>('all');
   const [autofillOverwrite, setAutofillOverwrite] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [downloadMessage, setDownloadMessage] = useState('');
   const [downloadMessageError, setDownloadMessageError] = useState(false);
@@ -92,31 +95,38 @@ export default function KpRequest() {
   useEffect(() => {
     let active = true;
 
-    async function fetchSettings() {
+    async function fetchPurchaseContext() {
+      if (!purchaseId) return;
       try {
-        const res = await apiFetch('/api/user/settings');
+        const res = await apiFetch(`/api/purchases/${purchaseId}/context`);
         if (!active) return;
 
         if (res.ok) {
-          const settings = await res.json();
-          setUserSettings(settings);
-          setData(prev => applyKpAutofill(prev, { userSettings: settings }, {
-            overwrite: true,
-            sourceKinds: ['userSettings'],
-            fieldKeys: ['submissionEmail', 'contactPerson', 'kpContacts'],
-          }).state);
+          const context: PurchaseContext = await res.json();
+          const savedState = context.documents.kp;
+          const currentPurchase = buildPurchaseAutofillContext(context);
+          const nextData = savedState
+            ? normalizeKpState(savedState as KpDocxData)
+            : applyKpAutofill(defaultValues, { userSettings: context.settings, currentPurchase }, {
+              overwrite: true,
+              sourceKinds: ['userSettings'],
+              fieldKeys: ['submissionEmail', 'contactPerson', 'kpContacts'],
+            }).state;
+          setPurchaseContext(context);
+          setUserSettings(context.settings);
+          setData(nextData);
         }
       } catch (err) {
         console.error(err);
       }
     }
 
-    void fetchSettings();
+    void fetchPurchaseContext();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [purchaseId]);
 
   const availableCounterpartyTags = useMemo(() => {
     const tags = new Set<string>();
@@ -164,6 +174,10 @@ export default function KpRequest() {
     counterparties.find((counterparty) => String(counterparty.id) === selectedCounterpartyId)
   ), [counterparties, selectedCounterpartyId]);
 
+  const currentPurchase = useMemo(
+    () => buildPurchaseAutofillContext(purchaseContext),
+    [purchaseContext]
+  );
   const autofillContext = useMemo(() => ({
     userSettings,
     currentPurchase,
@@ -285,32 +299,53 @@ export default function KpRequest() {
     setPreviewIndex(0);
   };
 
+  const saveDocumentState = async (
+    successMessage = 'Состояние запроса КП сохранено.',
+    failurePrefix = 'Не удалось сохранить состояние запроса КП'
+  ) => {
+    setDownloadMessage('');
+    setDownloadMessageError(false);
+    const documentData = normalizeKpState(data);
+    if (!purchaseId) return false;
+
+    setIsSaving(true);
+    try {
+      const res = await apiFetch(`/api/purchases/${purchaseId}/documents/kp`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: documentData })
+      });
+      if (!res.ok) {
+        setDownloadMessage(`${failurePrefix}: ${await readApiError(res)}`);
+        setDownloadMessageError(true);
+        return false;
+      }
+
+      setPurchaseContext(prev => prev ? { ...prev, documents: { ...prev.documents, kp: documentData } } : prev);
+      setDownloadMessage(successMessage);
+      setDownloadMessageError(false);
+      return true;
+    } catch (e) {
+      console.error("Failed to save purchase document", e);
+      setDownloadMessage(`${failurePrefix}: ошибка сети.`);
+      setDownloadMessageError(true);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleGenerate = async () => {
     setIsGenerating(true);
     setDownloadMessage('');
+    setDownloadMessageError(false);
     const documentData = normalizeKpState(data);
     try {
       await DOCUMENT_REGISTRY.kp.generate(documentData);
-
-      try {
-        const res = await apiFetch('/api/user/documents', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: DOCUMENT_REGISTRY.kp.getHistoryName(documentData),
-            state: documentData,
-            type: DOCUMENT_REGISTRY.kp.kind
-          })
-        });
-        if (!res.ok) {
-          setDownloadMessage(`Документ скачан, но история не сохранена: ${await readApiError(res)}`);
-          setDownloadMessageError(true);
-        }
-      } catch (e) {
-        console.error("Failed to save document history", e);
-        setDownloadMessage('Документ скачан, но история не сохранена: ошибка сети.');
-        setDownloadMessageError(true);
-      }
+      await saveDocumentState(
+        'Документ скачан, состояние закупки сохранено.',
+        'Документ скачан, но состояние закупки не сохранено'
+      );
     } catch (error) {
       console.error("Failed to generate docx", error);
       setDownloadMessage('Не удалось сформировать документ. Проверьте данные и попробуйте ещё раз.');
@@ -336,11 +371,19 @@ export default function KpRequest() {
         </div>
         <div className="flex gap-3 items-center shrink-0 flex-wrap justify-end">
           <AppNav />
-          <a href="/profile" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
+          <a href="/cabinet" className="btn-brutal bg-white flex items-center gap-2 hover:bg-gray-100 text-sm font-bold">
             <User className="w-4 h-4" /> Личный кабинет
           </a>
           <button onClick={resetState} className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-yellow-100 text-sm font-bold">
             <RefreshCw className="w-3.5 h-3.5" /> Сбросить
+          </button>
+          <button
+            type="button"
+            onClick={() => void saveDocumentState()}
+            disabled={isSaving}
+            className="btn-brutal bg-white border border-[#141414] flex items-center gap-2 hover:bg-green-50 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Save className="w-3.5 h-3.5" /> {isSaving ? 'Сохранение...' : 'Сохранить'}
           </button>
           <button
             onClick={handleGenerate}

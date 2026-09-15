@@ -27,7 +27,7 @@ export default function Login() {
       const data = await res.json();
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      navigate(data.user?.mustChangePassword ? '/profile' : '/');
+      navigate(data.user?.mustChangePassword ? '/cabinet' : '/');
     } catch (err) {
       setError('Ошибка сети. Проверьте подключение и попробуйте ещё раз.');
     }

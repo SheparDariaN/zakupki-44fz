@@ -1,12 +1,66 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nmck-postgres
+    init: true
+    environment:
+      POSTGRES_DB: zakupki
+      POSTGRES_USER: zakupki
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/entrypoint.sh:/zakupki-pg-entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/zakupki-pg-entrypoint.sh"]
+    command: ["postgres"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U zakupki -d zakupki && test -f /tmp/zakupki-pg-ready",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: always
+
+  mongo:
+    image: mongo:7
+    container_name: nmck-mongo
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
   app:
     build: .
     container_name: nmck-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
-      DB_FILE: /app/data/database.json
+      POSTGRES_USER: zakupki
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: zakupki
+      DATABASE_URL: postgres://zakupki:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/zakupki
+      MONGODB_URI: mongodb://mongo:27017/zakupki
+      FILE_STORAGE_DIR: /app/data/files
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      DOTENV_CONFIG_PATH: /dev/null
     volumes:
-      - ./data:/app/data
+      - ./data/files:/app/data/files
     restart: always
+
+volumes:
+  postgres-data:
+  mongo-data:

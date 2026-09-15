@@ -1,5 +1,5 @@
 ---
-description: Docker multi-stage, compose volume и production-сборка
+description: Docker multi-stage, compose с PostgreSQL/MongoDB и production-сборка
 globs:
   - Dockerfile
   - docker-compose.yml
@@ -9,7 +9,9 @@ alwaysApply: false
 
 # Docker
 
-Multi-stage: `node:22-alpine`, builder `npm ci` + `npm run build` + `npm prune --omit=dev`, runner копирует `dist` и `node_modules`. В runner: `USER node`, `HEALTHCHECK` на `GET /api/health`. CMD: `node dist/server.cjs`. Compose: сервис `app`, контейнер `nmck-app`, `3000:3000`, `DB_FILE=/app/data/database.json`, `JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}`, volume `./data:/app/data`.
+Multi-stage: `node:22-alpine`, builder `npm ci` + `npm run build` + `npm prune --omit=dev`, runner копирует `dist` и `node_modules`. В runner: `USER node`, `HEALTHCHECK` на `GET /api/health`.
+
+Compose: сервисы `postgres` (16-alpine), `mongo` (7) и `app`. На хост публикуй только `3000:3000`. Порты PostgreSQL и MongoDB не пробрасывай: приложение ходит к ним по именам сервисов внутри сети Compose (`postgres:5432`, `mongo:27017`). `JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}`, `DATABASE_URL`, `MONGODB_URI`, `FILE_STORAGE_DIR=/app/data/files`, volume `./data/files:/app/data/files`.
 
 ```dockerfile
 # ❌ BAD — npm install в runner, копирование исходников в прод
@@ -24,5 +26,8 @@ RUN npm audit --omit=dev || true
 ```
 
 - Registry задан в `.npmrc` (`npm-mirror.gitverse.ru`) — копируй `.npmrc` в builder, иначе `npm ci` падает.
-- Не копируй `src/`, `.env`, `database.json` в runner. Секреты — `environment` в compose (`JWT_SECRET` обязателен). Не запускай процесс от root: `USER node`.
+- Перед стартом app в контейнере выполняй `npm run migrate:up` с повторами, затем `node dist/server.cjs`. `DATABASE_URL` собирай из `POSTGRES_*` с URL-encoding пароля.
+- `depends_on` дополняй healthcheck: PostgreSQL через `pg_isready` **и** файл готовности после sync пароля (`docker/postgres/entrypoint.sh` делает `ALTER ROLE` на каждом старте — `POSTGRES_PASSWORD` на существующем volume иначе игнорируется), MongoDB через `mongosh ping`, app через `/api/health`.
+- Не копируй `src/`, `.env`, дампы БД и `data/files` в runner. Секреты — только environment/`.env`, не Dockerfile.
+- Не запускай процесс от root: `USER node`. Если нужен `chown` volume для файлов, делай это до переключения пользователя.
 - После смены зависимостей обновляй `package-lock.json` (не bun). Проверяй, что `.dockerignore` скрывает `data/`, `.cursor`, `docs`.

@@ -24,6 +24,7 @@
   },
   "include": [
     "src",
+    "scripts",
     "server.ts",
     "vite.config.ts",
     "vitest.config.ts"

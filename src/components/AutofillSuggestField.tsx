@@ -13,10 +13,12 @@ type AutofillSuggestFieldProps = {
   onPick: (suggestion: AutofillSuggestion) => void;
   className: string;
   type?: 'text';
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
   multiline?: boolean;
   rows?: number;
   placeholder?: string;
   disabled?: boolean;
+  required?: boolean;
 };
 
 function getFieldPreview(suggestion: AutofillSuggestion, fieldKey: string): string {
@@ -32,10 +34,12 @@ export default function AutofillSuggestField({
   onPick,
   className,
   type = 'text',
+  inputMode,
   multiline = false,
   rows,
   placeholder,
   disabled = false,
+  required = false,
 }: AutofillSuggestFieldProps) {
   const [open, setOpen] = useState(false);
   const hasSuggestions = suggestions.length > 0;
@@ -66,6 +70,7 @@ export default function AutofillSuggestField({
     },
     placeholder,
     disabled,
+    required,
     'aria-autocomplete': hasSuggestions ? 'list' as const : undefined,
     'aria-expanded': hasSuggestions ? open : undefined,
   };
@@ -81,6 +86,7 @@ export default function AutofillSuggestField({
         <input
           {...commonProps}
           type={type}
+          inputMode={inputMode}
         />
       )}
 

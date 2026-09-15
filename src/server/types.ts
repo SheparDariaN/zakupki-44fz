@@ -1,32 +1,32 @@
-import type { DocumentKind } from '../types';
+import type {
+  DocumentKind,
+  Purchase,
+  PurchaseContext,
+  PurchaseDocumentCounts,
+  PurchaseDocumentKind,
+  PurchaseDocumentMetadata,
+  PurchaseLink,
+  PurchaseListItem,
+  UserSettings,
+} from '../types';
 
 export type UserRole = 'admin' | 'user';
 
 export type DocumentType = DocumentKind;
+export type StoredPurchase = Purchase;
+export type StoredPurchaseListItem = PurchaseListItem;
+export type StoredPurchaseLink = PurchaseLink;
+export type StoredPurchaseDocumentMetadata = PurchaseDocumentMetadata;
+export type StoredPurchaseDocumentKind = PurchaseDocumentKind;
+export type StoredPurchaseDocumentCounts = PurchaseDocumentCounts;
+export type StoredPurchaseContext = PurchaseContext;
+export type { UserSettings };
 
 export interface AuthUser {
   id: number;
   username: string;
   role: UserRole;
   mustChangePassword?: boolean;
-}
-
-export interface UserSettings {
-  customer: string;
-  executorPosition: string;
-  executorName: string;
-  executorNameGenitive: string;
-  executorNameDative: string;
-  submissionEmail: string;
-  contactPerson: string;
-  contactPersonGenitive: string;
-  contactPersonDative: string;
-  contactPhone: string;
-  contractServiceHeadPosition: string;
-  contractServiceHeadName: string;
-  contractServiceHeadNameGenitive: string;
-  contractServiceHeadNameDative: string;
-  defaultServiceConditions: string[];
 }
 
 export interface StoredUser {
