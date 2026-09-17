@@ -58,10 +58,10 @@ const createCell = (
   fontSize: number = 20,
   widthDx?: number,
 ) => {
-  const content = typeof text === 'string' 
+  const content = typeof text === 'string'
     ? [new Paragraph({ children: [new TextRun({ text, bold, font: "Times New Roman", size: fontSize })], alignment: align })]
     : text;
-  
+
   return new TableCell({
     children: content,
     columnSpan: colSpan,
@@ -144,7 +144,7 @@ export const generateDocx = async (state: AppState) => {
   // Position Rows
   positions.forEach((pos, index) => {
     const posPrices: number[] = [];
-    
+
     const supplierCells = suppliers.map((sup, supplierIndex) => {
       const entry = prices.find(p => p.positionId === pos.id && p.supplierId === sup.id);
       const rawPrice = entry?.price || 0;
@@ -185,7 +185,7 @@ export const generateDocx = async (state: AppState) => {
   const conclusionContent = [
     new Paragraph({
       children: [
-        new TextRun({ text: "На основании проведенного анализа рынка и расчетов Заказчик принимает решение о минимальном значении цены за единицу, в соответствии с выделенными лимитами бюджетных обязательств. НМЦК составляет: ", font: "Times New Roman", size: 20 }),
+        new TextRun({ text: "На основании проведенного анализа рынка и расчетов Заказчик принимает решение о минимальном значении цены за единицу. НМЦК составляет: ", font: "Times New Roman", size: 20 }),
         new TextRun({ text: formatMoney(minSupplierTotal), font: "Times New Roman", size: 28, bold: true }), // 14pt Bold
         new TextRun({ text: ` рублей (${formatAmountInWords(minSupplierTotal)}).`, font: "Times New Roman", size: 20 })
       ],
@@ -238,77 +238,12 @@ export const generateDocx = async (state: AppState) => {
           new Paragraph({ text: '' }),
           new Paragraph({
             children: [
-              new TextRun({ 
+              new TextRun({
                 text: 'Цена Контракта включает в себя стоимость оказываемых Услуг, а также налоги и сборы, установленные действующим законодательством Российской Федерации.',
-                font: "Times New Roman", size: 20 
+                font: "Times New Roman", size: 20
               })
             ]
           }),
-          new Paragraph({ text: '' }),
-          new Paragraph({ text: '' }),
-          new Paragraph({ text: '' }),
-          new Paragraph({ text: '' }),
-          new Table({
-            width: { size: PAGE_CONTENT_TWIPS, type: WidthType.DXA },
-            columnWidths: [
-              SIGNATURE_CELL_TWIPS,
-              PAGE_CONTENT_TWIPS - SIGNATURE_CELL_TWIPS * 2,
-              SIGNATURE_CELL_TWIPS,
-            ],
-            borders: {
-              top: BORDER_NONE,
-              bottom: BORDER_NONE,
-              left: BORDER_NONE,
-              right: BORDER_NONE,
-              insideHorizontal: BORDER_NONE,
-              insideVertical: BORDER_NONE,
-            },
-            rows: [
-              new TableRow({
-                children: [
-                  new TableCell({
-                    width: { size: SIGNATURE_CELL_TWIPS, type: WidthType.DXA },
-                    verticalAlign: VerticalAlign.CENTER,
-                    borders: {
-                      top: BORDER_NONE,
-                      left: BORDER_NONE,
-                      right: BORDER_NONE,
-                      bottom: BORDER_BOTTOM,
-                    },
-                    children: [new Paragraph({
-                      children: [new TextRun({ text: requisites.executorPosition, font: "Times New Roman", size: 20 })],
-                      alignment: AlignmentType.CENTER,
-                    })]
-                  }),
-                  new TableCell({
-                    width: { size: PAGE_CONTENT_TWIPS - SIGNATURE_CELL_TWIPS * 2, type: WidthType.DXA },
-                    verticalAlign: VerticalAlign.CENTER,
-                    borders: {
-                      top: BORDER_NONE,
-                      left: BORDER_NONE,
-                      right: BORDER_NONE,
-                      bottom: BORDER_NONE,
-                    },
-                    children: [new Paragraph({ children: [new TextRun({ text: "", font: "Times New Roman", size: 20 })] })]
-                  }),
-                  new TableCell({
-                    width: { size: SIGNATURE_CELL_TWIPS, type: WidthType.DXA },
-                    verticalAlign: VerticalAlign.CENTER,
-                    borders: {
-                      top: BORDER_NONE,
-                      left: BORDER_NONE,
-                      right: BORDER_NONE,
-                      bottom: BORDER_BOTTOM,
-                    },
-                    children: [new Paragraph({
-                      children: [new TextRun({ text: requisites.executorName, font: "Times New Roman", size: 20 })],
-                      alignment: AlignmentType.CENTER,
-                    })]
-                  })
-                ]
-              })
-            ]
-          })
         ],
       },
     ],

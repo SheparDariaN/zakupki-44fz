@@ -286,7 +286,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#E4E3E0] text-[#141414] font-sans overflow-hidden p-6">
-      
+
       <header className="flex justify-between items-center mb-6 pb-4 border-b border-[#141414] shrink-0 gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold uppercase tracking-tighter">Система Обоснования НМЦК</h1>
@@ -320,7 +320,7 @@ export default function App() {
       )}
 
       <main className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-grow overflow-hidden">
-        
+
         {/* LEFT COLUMN: FORMS */}
         <aside className="col-span-1 xl:col-span-4 flex flex-col gap-6 overflow-hidden scroll-area pr-2">
           <AutofillPanel
@@ -339,7 +339,7 @@ export default function App() {
             onApply={applyAutofillSuggestions}
             contextNote="Эта НМЦК автоматически доступна для переноса в запрос КП и служебку."
           />
-          
+
           <section className="bg-white/50 p-5 border border-[#141414] shrink-0 shadow-sm transition-all hover:bg-white/80">
             <h2 className="text-[11px] uppercase font-bold mb-4 flex items-center gap-2">
               <span className="w-2 h-2 bg-black rounded-full animate-pulse"></span> Реквизиты Закупки
@@ -486,7 +486,7 @@ export default function App() {
                   <tr>
                     <th className="col-header text-left min-w-[120px]">Позиция</th>
                     {state.suppliers.map(s => (
-                      <th key={s.id} className="col-header text-right min-w-[80px]" title={s.name}>{s.name.substring(0,15)}</th>
+                      <th key={s.id} className="col-header text-right min-w-[80px]" title={s.name}>{s.name.substring(0, 15)}</th>
                     ))}
                   </tr>
                 </thead>
@@ -500,7 +500,7 @@ export default function App() {
                         const val = priceDrafts[draftKey] ?? savedPrice;
                         return (
                           <td key={sup.id} className="mono p-0 text-right">
-                            <input 
+                            <input
                               type="text"
                               inputMode="decimal"
                               placeholder="0.00"
@@ -566,9 +566,9 @@ function PreviewContent({ state }: { state: AppState }) {
         <h3 className="text-[10pt] font-bold">Обоснование начальной (максимальной) цены</h3>
         <p className="mt-1 text-[9pt]">{requisites.subject}</p>
       </div>
-      
-      <br/>
-      <br/>
+
+      <br />
+      <br />
 
       <table className="w-full table-fixed border-collapse border border-black mb-0">
         <colgroup>
@@ -577,20 +577,20 @@ function PreviewContent({ state }: { state: AppState }) {
         </colgroup>
         <tbody>
           <tr>
-            <td className="w-[3.5cm] border border-black p-1 text-center">Характеристики<br/>объекта закупки</td>
+            <td className="w-[3.5cm] border border-black p-1 text-center">Характеристики<br />объекта закупки</td>
             <td className="border border-black p-1">
               {requisites.subject}
             </td>
           </tr>
           <tr>
-            <td className="w-[3.5cm] border border-black p-1 text-center">Используемый метод<br/>определения НМЦ<br/>с обоснованием:</td>
+            <td className="w-[3.5cm] border border-black p-1 text-center">Используемый метод<br />определения НМЦ<br />с обоснованием:</td>
             <td className="border border-black p-1 text-justify">
               {METHOD_TEXT}
             </td>
           </tr>
         </tbody>
       </table>
-      
+
       <table className="w-full table-fixed border-collapse border border-black mb-4 -mt-px">
         <colgroup>
           <col className="w-[1cm]" />
@@ -609,26 +609,26 @@ function PreviewContent({ state }: { state: AppState }) {
           <tr>
             <td colSpan={4 + suppliers.length + 4} className="border border-black p-1 text-center">РАСЧЕТ НМЦК</td>
           </tr>
-          
+
           <tr className="text-center bg-gray-50/30">
             <td className="border border-black p-1 w-[1cm]">№</td>
-            <td className="border border-black p-1">Наименование<br/>товара, услуги<br/>(работы)</td>
+            <td className="border border-black p-1">Наименование<br />товара, услуги<br />(работы)</td>
             <td className="border border-black p-1 w-[1.5cm]">ЕИ</td>
             <td className="border border-black p-1 w-[1.5cm]">Кол-во</td>
             {suppliers.map(s => (
               <td key={s.id} className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">
-                Цена единицы товара<br/>(работ, услуг)<br/>{s.kpDetails}
+                Цена единицы товара<br />(работ, услуг)<br />{s.kpDetails}
               </td>
             ))}
-            <td className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">Средняя цена единицы<br/>товара (работ, услуг),<br/>(руб.)</td>
-            <td className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">Среднее<br/>квадратичное<br/>отклонение</td>
-            <td className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">Коэффициент<br/>вариации,<br/>(%)</td>
+            <td className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">Средняя цена единицы<br />товара (работ, услуг),<br />(руб.)</td>
+            <td className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">Среднее<br />квадратичное<br />отклонение</td>
+            <td className="border border-black p-1 text-xs overflow-hidden break-words leading-tight">Коэффициент<br />вариации,<br />(%)</td>
             <td className="border border-black p-1 w-[2.6cm] text-xs">НМЦК (руб.)</td>
           </tr>
 
           {positions.map((pos, index) => {
             const posPrices: number[] = [];
-            
+
             const supplierCells = suppliers.map((sup) => {
               const entry = prices.find(p => p.positionId === pos.id && p.supplierId === sup.id);
               const rawPrice = entry?.price || 0;
@@ -674,7 +674,7 @@ function PreviewContent({ state }: { state: AppState }) {
           </tr>
           <tr>
             <td colSpan={4 + suppliers.length + 4} className="border border-black p-1 text-center text-[10pt]">
-              На основании проведенного анализа рынка и расчетов Заказчик принимает решение о минимальном значении цены за единицу, в соответствии с выделенными лимитами бюджетных обязательств. НМЦК составляет: <span className="font-bold text-[14pt]">{formatMoney(minSupplierTotal)}</span> рублей ({formatAmountInWords(minSupplierTotal)}).
+              На основании проведенного анализа рынка и расчетов Заказчик принимает решение о минимальном значении цены за единицу. НМЦК составляет: <span className="font-bold text-[14pt]">{formatMoney(minSupplierTotal)}</span> рублей ({formatAmountInWords(minSupplierTotal)}).
             </td>
           </tr>
         </tbody>
@@ -689,28 +689,6 @@ function PreviewContent({ state }: { state: AppState }) {
       <p className="text-[10pt] mt-4">
         Цена Контракта включает в себя стоимость оказываемых Услуг, а также налоги и сборы, установленные действующим законодательством Российской Федерации.
       </p>
-
-      <div className="mt-10">
-        <table className="w-full border-collapse">
-          <colgroup>
-            <col className="w-[4.5cm]" />
-            <col />
-            <col className="w-[4.5cm]" />
-          </colgroup>
-          <tbody>
-            <tr>
-              <td className="w-[4.5cm] max-w-[4.5cm] border-b border-black text-center align-bottom p-0 pb-0.5 text-[10pt]">
-                {requisites.executorPosition}
-              </td>
-              <td className="border-0 p-0" aria-hidden="true" />
-              <td className="w-[4.5cm] max-w-[4.5cm] border-b border-black text-center align-bottom p-0 pb-0.5 text-[10pt]">
-                {requisites.executorName}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      
     </div>
   );
 }
